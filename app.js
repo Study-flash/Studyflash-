@@ -909,3 +909,98 @@ function formatDate(dateStr){
 function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
 
 refresh();
+
+
+/* ===== V11 FIX STRUMENTI AI EXTRA ===== */
+function setAiExtraMessage(message){
+  const box = document.querySelector("#aiExtraBox");
+  if(box) box.textContent = message || "";
+}
+
+async function aiExtra(endpoint){
+  const text = document.querySelector("#sourceText")?.value.trim() || "";
+  const url = getWorkerUrl ? getWorkerUrl() : ((db.settings?.workerUrl || "").trim().replace(/\/$/,""));
+
+  if(!text){
+    setAiExtraMessage("Inserisci o importa prima un testo, un PDF o un'immagine.");
+    alert("Inserisci o importa prima un testo, un PDF o un'immagine.");
+    return;
+  }
+
+  if(!url){
+    setAiExtraMessage("Inserisci prima l'URL del Cloudflare Worker nelle Impostazioni.");
+    alert("Inserisci prima l'URL del Cloudflare Worker nelle Impostazioni.");
+    return;
+  }
+
+  setAiExtraMessage("Elaborazione AI in corso...");
+
+  try{
+    const payload = {
+      text,
+      topic: document.querySelector("#deckTopic")?.value || "",
+      count: 10
+    };
+
+    const r = await fetch(url + "/" + endpoint, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+
+    const data = await r.json();
+
+    if(!r.ok){
+      throw new Error(data.error || "Errore AI");
+    }
+
+    if(endpoint === "generate"){
+      const cards = data.cards || [];
+      if(!cards.length){
+        setAiExtraMessage("L'AI non ha generato flashcard. Prova con un testo più chiaro o più lungo.");
+        return;
+      }
+
+      draftCards = draftCards.concat(cards.map(c => ({
+        id: uid(),
+        q: c.question || c.q || "",
+        a: c.answer || c.a || "",
+        due: today(),
+        box: 0,
+        ok: 0,
+        ko: 0
+      })));
+
+      renderPreview();
+
+      const lines = [
+        data.detected_topic ? "✅ Argomento rilevato: " + data.detected_topic : "",
+        data.warning ? "⚠️ " + data.warning : "",
+        "✅ Aggiunte " + cards.length + " flashcard all'anteprima."
+      ].filter(Boolean);
+
+      setAiExtraMessage(lines.join("\n"));
+      return;
+    }
+
+    setAiExtraMessage(formatAiText ? formatAiText(data.result || JSON.stringify(data,null,2)) : (data.result || JSON.stringify(data,null,2)));
+
+  }catch(e){
+    setAiExtraMessage("Errore AI: " + e.message);
+  }
+}
+
+document.querySelector("#aiSummaryBtn")?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  aiExtra("summary");
+});
+
+document.querySelector("#aiExplainBtn")?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  aiExtra("explain");
+});
+
+document.querySelector("#aiMoreCardsBtn")?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  aiExtra("generate");
+});
