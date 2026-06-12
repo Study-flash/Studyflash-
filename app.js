@@ -1074,3 +1074,115 @@ document.addEventListener("click", (e)=>{
     generateOralQuestionV12();
   }
 });
+
+
+/* ===== V13 MATERIE EDITABILI ===== */
+function addSubjectV13(){
+  ensureCtfData();
+  const name = prompt("Nome nuova materia:");
+  if(!name || !name.trim()) return;
+
+  const cleanName = name.trim();
+
+  if(db.subjects.some(s => (s.name || "").toLowerCase() === cleanName.toLowerCase())){
+    alert("Questa materia esiste già.");
+    return;
+  }
+
+  db.subjects.push({
+    id: "ctf_custom_" + uid(),
+    name: cleanName,
+    examDate: "",
+    cfu: "",
+    difficulty: "",
+    progress: 0,
+    custom: true
+  });
+
+  save();
+  showView("subjects");
+}
+
+function editSubjectV13(subjectId){
+  ensureCtfData();
+  const s = db.subjects.find(x => String(x.id) === String(subjectId));
+  if(!s) return alert("Materia non trovata.");
+
+  const oldName = s.name;
+  const newName = prompt("Modifica nome materia:", s.name || "");
+  if(!newName || !newName.trim()) return;
+
+  s.name = newName.trim();
+
+  (db.exams || []).forEach(e => {
+    if(e.subject === oldName) e.subject = s.name;
+  });
+
+  save();
+}
+
+function deleteSubjectV13(subjectId){
+  ensureCtfData();
+  const s = db.subjects.find(x => String(x.id) === String(subjectId));
+  if(!s) return alert("Materia non trovata.");
+
+  const linkedDecks = (db.decks || []).filter(d => 
+    (d.topic || "").toLowerCase().includes((s.name || "").toLowerCase()) ||
+    (d.name || "").toLowerCase().includes((s.name || "").toLowerCase())
+  ).length;
+
+  const msg = linkedDecks > 0
+    ? `La materia "${s.name}" ha ${linkedDecks} mazzi/capitoli collegati. Vuoi eliminarla comunque? I mazzi non verranno cancellati.`
+    : `Eliminare la materia "${s.name}"?`;
+
+  if(!confirm(msg)) return;
+
+  db.subjects = db.subjects.filter(x => String(x.id) !== String(subjectId));
+  db.exams = (db.exams || []).filter(e => e.subject !== s.name);
+  save();
+}
+
+function renderCtfSubjects(){
+  const box=document.querySelector("#ctfSubjectsGrid");
+  if(!box) return;
+  ensureCtfData();
+  box.innerHTML="";
+
+  db.subjects.forEach(s=>{
+    const progress=Math.max(Number(s.progress||0), subjectProgress(s.name));
+    const decks=(db.decks || []).filter(d => 
+      (d.topic||"").toLowerCase().includes((s.name||"").toLowerCase()) || 
+      (d.name||"").toLowerCase().includes((s.name||"").toLowerCase())
+    );
+    const cards=decks.reduce((a,d)=>a+(d.cards?.length||0),0);
+    const exam=(db.exams || []).find(e=>e.subject===s.name);
+
+    box.insertAdjacentHTML("beforeend",`
+      <div class="subjectCard">
+        <h3>${esc(subjectIcon(s.name))} ${esc(s.name)}</h3>
+        <div class="small">${cards} flashcard • ${decks.length} capitoli/mazzi</div>
+        <div class="progressBar"><span style="width:${progress}%"></span></div>
+        <div class="small">Preparazione: ${progress}%</div>
+        <div class="small">${exam ? "Esame: "+esc(formatDate(exam.date)) : "Nessun esame impostato"}</div>
+        <div class="itemActions">
+          <button type="button" onclick="createDeckForSubject('${escAttr(s.name)}')">Crea capitolo</button>
+          <button type="button" class="secondary" onclick="openTutorForSubject('${escAttr(s.name)}')">Tutor</button>
+          <button type="button" class="secondary" onclick="editSubjectV13('${escAttr(s.id)}')">Modifica</button>
+          <button type="button" class="secondary" onclick="deleteSubjectV13('${escAttr(s.id)}')">Elimina</button>
+        </div>
+      </div>
+    `);
+  });
+}
+
+document.querySelector("#addSubjectBtn")?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  addSubjectV13();
+});
+
+window.addSubjectV13 = addSubjectV13;
+window.editSubjectV13 = editSubjectV13;
+window.deleteSubjectV13 = deleteSubjectV13;
+window.renderCtfSubjects = renderCtfSubjects;
+
+refresh();
