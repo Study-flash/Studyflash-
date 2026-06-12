@@ -2,69 +2,157 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>StudyFlash - Flashcard e Quiz</title>
-  <meta name="theme-color" content="#111827" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <style>
-    :root{--bg:#0f1020;--card:#17182b;--soft:#242642;--text:#f8fafc;--muted:#a5adcb;--y:#ffd54a;--p:#9b7cff;--g:#35d399;--r:#ff6b6b;--b:#60a5fa}
-    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:radial-gradient(circle at top,#27294c 0,#111827 45%,#080914 100%);color:var(--text)}
-    header{position:sticky;top:0;z-index:3;background:rgba(8,9,20,.82);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);padding:14px 16px;display:flex;align-items:center;gap:12px}
-    .logo{width:46px;height:46px;border-radius:16px;background:#fff;display:grid;place-items:center;box-shadow:0 8px 30px #0006}.logo div{width:27px;height:27px;border:5px solid #050505;border-radius:6px;padding:3px;display:grid;gap:4px}.logo span:first-child{background:var(--y);border-radius:3px}.logo span:last-child{background:var(--p);border-radius:3px}
-    h1{font-size:21px;margin:0}.sub{color:var(--muted);font-size:13px}.wrap{max-width:1100px;margin:auto;padding:18px}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.panel{grid-column:span 12;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:18px;box-shadow:0 18px 60px #0005}.half{grid-column:span 6}.third{grid-column:span 4}@media(max-width:850px){.half,.third{grid-column:span 12}}
-    button,input,textarea,select{font:inherit} input,textarea,select{width:100%;border:1px solid rgba(255,255,255,.12);background:#0e1020;color:var(--text);border-radius:14px;padding:12px;outline:none} textarea{min-height:110px;resize:vertical}.row{display:flex;gap:10px;flex-wrap:wrap}.btn{border:0;border-radius:14px;padding:11px 14px;background:var(--p);color:#fff;font-weight:800;cursor:pointer}.btn.secondary{background:var(--soft)}.btn.good{background:var(--g);color:#052015}.btn.bad{background:var(--r)}.btn.yellow{background:var(--y);color:#241b00}.btn:active{transform:scale(.98)}
-    .tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;background:#20223d;color:#fff;border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:10px 14px;cursor:pointer}.tab.active{background:linear-gradient(90deg,var(--y),var(--p));color:#111;font-weight:900}.hidden{display:none!important}.muted{color:var(--muted)}.big{font-size:28px;font-weight:900}.cardStudy{min-height:240px;display:grid;place-items:center;text-align:center;background:linear-gradient(135deg,#1d2040,#111321);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:26px;font-size:24px;line-height:1.35;cursor:pointer}.badge{display:inline-flex;gap:6px;align-items:center;padding:7px 10px;border-radius:999px;background:#222443;color:#dbe4ff;font-size:13px;margin:3px}.list{display:grid;gap:10px}.item{padding:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);border-radius:16px}.kpi{font-size:32px;font-weight:900}.progress{height:10px;background:#282b49;border-radius:99px;overflow:hidden}.progress>span{display:block;height:100%;background:linear-gradient(90deg,var(--y),var(--p));width:0}.quizOpt{display:block;width:100%;text-align:left;margin:8px 0;background:#191b31;border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:14px;padding:12px;cursor:pointer}.quizOpt.ok{background:#123c2d}.quizOpt.ko{background:#4a1b23}.footer{padding:20px;text-align:center;color:var(--muted);font-size:12px}.danger{color:#ffb4b4}.small{font-size:12px}
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>StudyFlash AI</title>
+  <meta name="theme-color" content="#111827">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
-<header><div class="logo"><div><span></span><span></span></div></div><div><h1>StudyFlash</h1><div class="sub">Flashcard, quiz, ripasso intelligente e studio offline</div></div></header>
-<main class="wrap">
-  <div class="tabs">
-    <button class="tab active" data-tab="home">Home</button><button class="tab" data-tab="create">Crea</button><button class="tab" data-tab="study">Studia</button><button class="tab" data-tab="quiz">Quiz</button><button class="tab" data-tab="library">Libreria</button><button class="tab" data-tab="settings">Impostazioni</button>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>StudyFlash AI</h1>
+        <p>Flashcard, quiz, AI, OCR e ripasso intelligente</p>
+      </div>
+      <button id="installBtn" class="ghost hidden">Installa</button>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-view="home">Home</button>
+      <button class="tab" data-view="create">Crea</button>
+      <button class="tab" data-view="study">Studia</button>
+      <button class="tab" data-view="quiz">Quiz</button>
+      <button class="tab" data-view="stats">Statistiche</button>
+      <button class="tab" data-view="settings">Impostazioni</button>
+    </nav>
+
+    <main>
+      <section id="home" class="view active">
+        <div class="hero">
+          <h2>Trasforma appunti, foto e PDF in schede di studio</h2>
+          <p>Funziona anche senza AI: puoi creare flashcard manuali. Con Cloudflare Worker + API AI genera tutto automaticamente.</p>
+          <div class="actions">
+            <button data-go="create">Crea materiale</button>
+            <button class="secondary" data-go="study">Inizia ripasso</button>
+          </div>
+        </div>
+        <div class="grid cards">
+          <div class="card"><b id="deckCount">0</b><span>Mazzi</span></div>
+          <div class="card"><b id="cardCount">0</b><span>Flashcard</span></div>
+          <div class="card"><b id="dueCount">0</b><span>Da ripassare</span></div>
+          <div class="card"><b id="xpCount">0</b><span>XP</span></div>
+        </div>
+        <h3>Ultimi mazzi</h3>
+        <div id="deckList" class="list"></div>
+      </section>
+
+      <section id="create" class="view">
+        <div class="panel">
+          <h2>Crea un nuovo mazzo</h2>
+          <label>Nome mazzo</label>
+          <input id="deckName" placeholder="Esempio: Inglese, PLC Siemens, Robot ABB">
+          <label>Materia / argomento</label>
+          <input id="deckTopic" placeholder="Esempio: verbi irregolari, sicurezza robot, storia">
+        </div>
+
+        <div class="panel">
+          <h3>Importa testo, PDF o immagine</h3>
+          <textarea id="sourceText" rows="8" placeholder="Incolla qui appunti, lezione o testo da trasformare in flashcard..."></textarea>
+          <div class="fileRow">
+            <input id="fileInput" type="file" accept=".txt,.pdf,image/*">
+            <button id="readFileBtn" class="secondary">Leggi file</button>
+          </div>
+          <div id="fileStatus" class="muted"></div>
+          <div class="actions">
+            <button id="aiGenerateBtn">Genera con AI</button>
+            <button id="localGenerateBtn" class="secondary">Genera base senza AI</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Aggiunta manuale</h3>
+          <input id="manualQ" placeholder="Domanda">
+          <textarea id="manualA" rows="4" placeholder="Risposta"></textarea>
+          <button id="addManualBtn">Aggiungi flashcard</button>
+        </div>
+
+        <div class="panel">
+          <h3>Anteprima flashcard</h3>
+          <div id="previewCards" class="list"></div>
+          <button id="saveDeckBtn">Salva mazzo</button>
+        </div>
+      </section>
+
+      <section id="study" class="view">
+        <div class="panel">
+          <h2>Ripasso intelligente</h2>
+          <select id="studyDeckSelect"></select>
+          <button id="startStudyBtn">Avvia</button>
+        </div>
+        <div id="studyBox" class="studyBox hidden">
+          <div class="flipcard" id="flipCard">
+            <div class="front" id="studyQuestion"></div>
+            <div class="back" id="studyAnswer"></div>
+          </div>
+          <div class="actions">
+            <button id="showAnswerBtn">Mostra risposta</button>
+            <button id="speakBtn" class="secondary">Ascolta</button>
+          </div>
+          <div class="rating hidden" id="ratingBtns">
+            <button data-rate="hard">Difficile</button>
+            <button data-rate="medium">Medio</button>
+            <button data-rate="easy">Facile</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="quiz" class="view">
+        <div class="panel">
+          <h2>Quiz</h2>
+          <select id="quizDeckSelect"></select>
+          <button id="startQuizBtn">Avvia quiz</button>
+        </div>
+        <div id="quizBox" class="panel hidden">
+          <h3 id="quizQuestion"></h3>
+          <div id="quizOptions" class="options"></div>
+          <div id="quizFeedback"></div>
+          <button id="nextQuizBtn" class="hidden">Prossima</button>
+        </div>
+      </section>
+
+      <section id="stats" class="view">
+        <div class="panel">
+          <h2>Statistiche</h2>
+          <div id="statsBox"></div>
+        </div>
+      </section>
+
+      <section id="settings" class="view">
+        <div class="panel">
+          <h2>Impostazioni AI</h2>
+          <p class="muted">Inserisci l'URL del tuo Cloudflare Worker. La chiave API non va mai messa dentro GitHub Pages.</p>
+          <input id="workerUrl" placeholder="https://tuo-worker.nome.workers.dev">
+          <button id="saveSettingsBtn">Salva impostazioni</button>
+        </div>
+
+        <div class="panel">
+          <h3>Backup</h3>
+          <button id="exportBtn">Esporta dati</button>
+          <input id="importInput" type="file" accept="application/json">
+          <button id="importBtn" class="secondary">Importa dati</button>
+        </div>
+
+        <div class="panel danger">
+          <h3>Reset</h3>
+          <button id="resetBtn">Cancella tutto</button>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <section id="home" class="view grid">
-    <div class="panel"><div class="big">Impara più velocemente con flashcard e quiz</div><p class="muted">Carica appunti in testo, genera carte automaticamente, studia con ripetizione programmata e salva tutto sul dispositivo.</p><div class="row"><button class="btn yellow" onclick="go('create')">+ Crea mazzo</button><button class="btn secondary" onclick="go('study')">Ripassa ora</button></div></div>
-    <div class="panel third"><div class="muted">Carte totali</div><div id="kCards" class="kpi">0</div></div><div class="panel third"><div class="muted">Da ripassare</div><div id="kDue" class="kpi">0</div></div><div class="panel third"><div class="muted">Serie studio</div><div id="kStreak" class="kpi">0</div></div>
-    <div class="panel"><h2>Ultimi mazzi</h2><div id="recentDecks" class="list"></div></div>
-  </section>
-
-  <section id="create" class="view grid hidden">
-    <div class="panel half"><h2>Nuovo mazzo</h2><label>Nome mazzo</label><input id="deckName" placeholder="Es. Inglese, PLC Siemens, Storia..."/><label>Appunti / testo</label><textarea id="sourceText" placeholder="Incolla qui il testo. Ogni frase importante può diventare una flashcard."></textarea><div class="row"><button class="btn" onclick="autoGenerate()">Genera flashcard</button><button class="btn secondary" onclick="addManual()">Aggiungi manuale</button></div><p class="small muted">Versione GitHub Pages: generazione locale semplice. Per AI vera da PDF/foto serve un Worker/API esterna.</p></div>
-    <div class="panel half"><h2>Anteprima carte</h2><div id="preview" class="list"></div><br><button class="btn good" onclick="saveDeck()">Salva mazzo</button></div>
-  </section>
-
-  <section id="study" class="view grid hidden">
-    <div class="panel"><h2>Studio con ripetizione programmata</h2><select id="studyDeck"></select><br><br><div id="studyCard" class="cardStudy">Seleziona un mazzo e inizia</div><br><div class="row"><button class="btn secondary" onclick="flipCard()">Mostra risposta</button><button class="btn bad" onclick="rateCard(1)">Difficile</button><button class="btn yellow" onclick="rateCard(3)">Normale</button><button class="btn good" onclick="rateCard(5)">Facile</button></div><p id="studyInfo" class="muted"></p></div>
-  </section>
-
-  <section id="quiz" class="view grid hidden">
-    <div class="panel"><h2>Quiz automatico</h2><select id="quizDeck"></select><br><br><div id="quizBox"></div><div id="quizResult" class="muted"></div><br><button class="btn" onclick="startQuiz()">Nuovo quiz</button></div>
-  </section>
-
-  <section id="library" class="view grid hidden"><div class="panel"><h2>Libreria mazzi</h2><div id="deckList" class="list"></div></div></section>
-  <section id="settings" class="view grid hidden"><div class="panel"><h2>Impostazioni</h2><p class="muted">I dati sono salvati nel browser con localStorage. Puoi esportarli o importarli.</p><div class="row"><button class="btn secondary" onclick="exportData()">Esporta JSON</button><button class="btn secondary" onclick="document.getElementById('importFile').click()">Importa JSON</button><button class="btn bad" onclick="resetAll()">Cancella tutto</button></div><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importData(event)"></div></section>
-</main><div class="footer">StudyFlash PWA • installabile da browser • funzionamento offline</div>
-<script>
-let db=JSON.parse(localStorage.getItem('studyflash_db')||'{"decks":[],"streak":0,"lastStudy":""}');let draft=[];let current=null,flipped=false,quiz=[];
-const $=id=>document.getElementById(id);function persist(){localStorage.setItem('studyflash_db',JSON.stringify(db));render()}
-function go(t){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==t));render(); if(t==='study') loadStudy(); if(t==='quiz') fillSelects();}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>go(b.dataset.tab));
-function today(){return new Date().toISOString().slice(0,10)} function due(c){return !c.due || new Date(c.due)<=new Date()}
-function render(){let cards=db.decks.flatMap(d=>d.cards);$('kCards').textContent=cards.length;$('kDue').textContent=cards.filter(due).length;$('kStreak').textContent=db.streak||0;let recent=db.decks.slice(-4).reverse();$('recentDecks').innerHTML=recent.length?recent.map(d=>`<div class="item"><b>${d.name}</b><br><span class="muted">${d.cards.length} carte</span></div>`).join(''):'<p class="muted">Nessun mazzo ancora creato.</p>'; $('deckList').innerHTML=db.decks.map((d,i)=>`<div class="item"><b>${d.name}</b><br><span class="muted">${d.cards.length} carte • create ${d.created}</span><br><br><button class="btn secondary" onclick="openDeck(${i})">Studia</button> <button class="btn bad" onclick="deleteDeck(${i})">Elimina</button></div>`).join('')||'<p class="muted">Libreria vuota.</p>'; fillSelects()}
-function fillSelects(){['studyDeck','quizDeck'].forEach(id=>{let s=$(id); if(!s)return; let val=s.value; s.innerHTML=db.decks.map((d,i)=>`<option value="${i}">${d.name}</option>`).join(''); s.value=val;});}
-function autoGenerate(){let name=$('deckName').value.trim()||'Mazzo senza nome';let txt=$('sourceText').value.trim(); if(!txt)return alert('Incolla prima un testo.');let parts=txt.split(/[\n\.\;\?\!]+/).map(x=>x.trim()).filter(x=>x.length>25);draft=parts.slice(0,30).map((p,i)=>{let words=p.split(' ');let key=words.slice(0,Math.min(6,words.length)).join(' ');return {q:`Spiega: ${key}...`,a:p,box:0,due:new Date().toISOString(),seen:0,ok:0}});$('preview').innerHTML=draft.map(c=>`<div class="item"><b>D:</b> ${c.q}<br><span class="muted"><b>R:</b> ${c.a}</span></div>`).join('');}
-function addManual(){let q=prompt('Domanda'); if(!q)return; let a=prompt('Risposta'); if(!a)return; draft.push({q,a,box:0,due:new Date().toISOString(),seen:0,ok:0});$('preview').innerHTML=draft.map(c=>`<div class="item"><b>D:</b> ${c.q}<br><span class="muted"><b>R:</b> ${c.a}</span></div>`).join('')}
-function saveDeck(){if(!draft.length)return alert('Prima genera o aggiungi carte.');db.decks.push({name:$('deckName').value.trim()||'Mazzo senza nome',created:today(),cards:draft});draft=[];$('preview').innerHTML='';$('sourceText').value='';persist();alert('Mazzo salvato!');go('study')}
-function openDeck(i){go('study');$('studyDeck').value=i;loadStudy()} function deleteDeck(i){if(confirm('Eliminare questo mazzo?')){db.decks.splice(i,1);persist()}}
-function loadStudy(){let i=+$('studyDeck').value||0;let d=db.decks[i]; if(!d){$('studyCard').textContent='Nessun mazzo disponibile';return} current=d.cards.find(due)||d.cards[0];flipped=false;showCard()}
-$('studyDeck').onchange=loadStudy;function showCard(){if(!current)return;$('studyCard').textContent=flipped?current.a:current.q;$('studyInfo').textContent=flipped?'Valuta quanto ricordavi la risposta.':'Tocca la carta o “Mostra risposta”.'} $('studyCard').onclick=flipCard;function flipCard(){flipped=true;showCard()}
-function rateCard(score){if(!current)return;current.seen++; if(score>=3)current.ok++; let days=score==1?1:score==3?3:7; current.box=Math.max(0,(current.box||0)+(score==1?-1:1)); let dueDate=new Date();dueDate.setDate(dueDate.getDate()+days+current.box);current.due=dueDate.toISOString(); if(db.lastStudy!==today()){db.streak=(db.streak||0)+1;db.lastStudy=today()} persist();loadStudy()}
-function startQuiz(){let d=db.decks[+$('quizDeck').value||0]; if(!d||d.cards.length<2){$('quizBox').innerHTML='<p class="danger">Servono almeno 2 carte.</p>';return} let c=d.cards[Math.floor(Math.random()*d.cards.length)]; let opts=[c.a,...d.cards.filter(x=>x!==c).sort(()=>Math.random()-.5).slice(0,3).map(x=>x.a)].sort(()=>Math.random()-.5); $('quizBox').innerHTML=`<h3>${c.q}</h3>`+opts.map(o=>`<button class="quizOpt" onclick="answerQuiz(this, ${JSON.stringify(o===c.a)})">${o}</button>`).join('');$('quizResult').textContent=''}
-function answerQuiz(btn,ok){btn.classList.add(ok?'ok':'ko');$('quizResult').textContent=ok?'Risposta esatta!':'Risposta sbagliata: ripassa la carta e riprova.'}
-function exportData(){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));a.download='studyflash-backup.json';a.click()}
-function importData(e){let f=e.target.files[0]; if(!f)return;let r=new FileReader();r.onload=()=>{db=JSON.parse(r.result);persist();alert('Importazione completata')};r.readAsText(f)}
-function resetAll(){if(confirm('Cancellare tutti i dati?')){db={decks:[],streak:0,lastStudy:''};persist()}}
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');render();
-</script>
-</body></html>
+  <script src="app.js"></script>
+</body>
+</html>
