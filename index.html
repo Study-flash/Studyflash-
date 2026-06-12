@@ -22,9 +22,14 @@
 
     <nav class="tabs">
       <button class="tab active" data-view="home">Home</button>
+      <button class="tab" data-view="subjects">Materie CTF</button>
+      <button class="tab" data-view="exams">Esami</button>
+      <button class="tab" data-view="tutor">Tutor AI</button>
       <button class="tab" data-view="create">Crea</button>
       <button class="tab" data-view="study">Studia</button>
       <button class="tab" data-view="quiz">Quiz</button>
+      <button class="tab" data-view="oral">Orale</button>
+      <button class="tab" data-view="drugs">Farmaci</button>
       <button class="tab" data-view="manage">Gestione</button>
       <button class="tab" data-view="stats">Statistiche</button>
       <button class="tab" data-view="settings">Impostazioni</button>
@@ -33,12 +38,17 @@
     <main>
       <section id="home" class="view active">
         <div class="hero">
-          <h2>Trasforma appunti, foto e PDF in schede di studio</h2>
-          <p>Funziona anche senza AI: puoi creare flashcard manuali. Con Cloudflare Worker + API AI genera tutto automaticamente.</p>
+          <h2>StudyFlash AI CTF Pro</h2>
+          <p>Assistente universitario per Chimica e Tecnologia Farmaceutiche: materie, esami, flashcard, tutor AI, farmaci e simulazione orale.</p>
           <div class="actions">
-            <button data-go="create">Crea materiale</button>
-            <button class="secondary" data-go="study">Inizia ripasso</button>
+            <button data-go="subjects">Apri Materie CTF</button>
+            <button class="secondary" data-go="exams">Calendario esami</button>
+            <button class="secondary" data-go="tutor">Tutor AI CTF</button>
           </div>
+        </div>
+        <div class="panel">
+          <h3>Prossimo esame</h3>
+          <div id="nextExamBox" class="ctfHighlight">Nessun esame inserito.</div>
         </div>
         <div class="grid cards">
           <div class="card"><b id="deckCount">0</b><span>Mazzi</span></div>
@@ -49,6 +59,73 @@
         <h3>Ultimi mazzi</h3>
         <input id="deckSearch" placeholder="Cerca nei mazzi e nelle flashcard...">
         <div id="deckList" class="list"></div>
+      </section>
+
+      <section id="subjects" class="view">
+        <div class="panel">
+          <h2>Materie CTF</h2>
+          <p class="muted">Materie preimpostate per Chimica e Tecnologia Farmaceutiche. Ogni materia può contenere capitoli/mazzi, flashcard e preparazione.</p>
+          <div id="ctfSubjectsGrid" class="subjectGrid"></div>
+        </div>
+      </section>
+
+      <section id="exams" class="view">
+        <div class="panel">
+          <h2>Calendario esami</h2>
+          <label>Materia</label>
+          <select id="examSubject"></select>
+          <label>Data esame</label>
+          <input id="examDate" type="date">
+          <label>CFU</label>
+          <input id="examCfu" type="number" min="1" max="30" placeholder="Esempio: 9">
+          <label>Difficoltà 1-10</label>
+          <input id="examDifficulty" type="number" min="1" max="10" placeholder="Esempio: 8">
+          <button id="saveExamBtn">Salva esame</button>
+        </div>
+        <div class="panel">
+          <h3>Esami salvati</h3>
+          <div id="examList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="tutor" class="view">
+        <div class="panel">
+          <h2>Tutor AI CTF</h2>
+          <label>Materia / argomento</label>
+          <select id="tutorSubject"></select>
+          <textarea id="tutorQuestion" rows="5" placeholder="Esempio: spiegami il ciclo di Krebs, interrogami sui beta-lattamici, fammi un quiz su farmacocinetica..."></textarea>
+          <div class="actions">
+            <button id="tutorExplainBtn">Spiegami</button>
+            <button id="tutorSummaryBtn" class="secondary">Riassumi</button>
+            <button id="tutorQuizBtn" class="secondary">Fammi domande</button>
+            <button id="tutorCardsBtn" class="secondary">Crea flashcard</button>
+          </div>
+          <div id="tutorAnswer" class="aiBox"></div>
+        </div>
+      </section>
+
+      <section id="oral" class="view">
+        <div class="panel">
+          <h2>Simulazione orale CTF</h2>
+          <label>Materia</label>
+          <select id="oralSubject"></select>
+          <label>Domanda del professore</label>
+          <textarea id="oralQuestion" rows="3" placeholder="Esempio: Mi descriva il meccanismo d'azione dei beta-lattamici."></textarea>
+          <label>Risposta dello studente</label>
+          <textarea id="oralAnswer" rows="6" placeholder="Scrivi qui la risposta oppure dettala con la tastiera vocale del telefono."></textarea>
+          <button id="oralEvaluateBtn">Valuta risposta</button>
+          <div id="oralResult" class="aiBox"></div>
+        </div>
+      </section>
+
+      <section id="drugs" class="view">
+        <div class="panel">
+          <h2>Scheda farmaco</h2>
+          <p class="muted">Genera una scheda CTF con classe, meccanismo, indicazioni, effetti avversi e domande d'esame.</p>
+          <input id="drugName" placeholder="Esempio: Amoxicillina, Paracetamolo, Warfarin">
+          <button id="drugGenerateBtn">Genera scheda farmaco</button>
+          <div id="drugResult" class="aiBox"></div>
+        </div>
       </section>
 
       <section id="create" class="view">

@@ -644,3 +644,268 @@ document.querySelector("#cloudLoginBtn")?.addEventListener("click",cloudLogin);
 document.querySelector("#cloudSaveBtn")?.addEventListener("click",cloudSave);
 document.querySelector("#cloudLoadBtn")?.addEventListener("click",cloudLoad);
 setTimeout(()=>{if(db.settings?.cloudEmail&&document.querySelector("#cloudEmail")) document.querySelector("#cloudEmail").value=db.settings.cloudEmail;},300);
+
+
+/* ===== V7 CTF PRO UI ===== */
+const CTF_SUBJECTS = [
+  "Chimica Generale",
+  "Chimica Organica I",
+  "Chimica Organica II",
+  "Biochimica",
+  "Farmacologia",
+  "Tecnologia Farmaceutica",
+  "Tossicologia",
+  "Fisiologia",
+  "Microbiologia",
+  "Analisi dei Farmaci",
+  "Legislazione Farmaceutica"
+];
+
+function ensureCtfData(){
+  db.subjects = db.subjects || CTF_SUBJECTS.map(name => ({
+    id: "ctf_" + name.toLowerCase().replaceAll(" ","_"),
+    name,
+    examDate:"",
+    cfu:"",
+    difficulty:"",
+    progress:0
+  }));
+  db.exams = db.exams || [];
+  db.settings = db.settings || {};
+}
+ensureCtfData();
+
+const oldRefreshV7 = refresh;
+refresh = function(){
+  ensureCtfData();
+  oldRefreshV7();
+  renderCtfSubjects();
+  fillCtfSelects();
+  renderExams();
+  renderNextExam();
+};
+
+function subjectProgress(name){
+  const cards = db.decks.filter(d => (d.topic||"").toLowerCase().includes(name.toLowerCase()) || (d.name||"").toLowerCase().includes(name.toLowerCase())).flatMap(d=>d.cards||[]);
+  if(!cards.length) return 0;
+  const reviewed = cards.filter(c => (c.ok||0)>0 || (c.box||0)>0).length;
+  return Math.round((reviewed / cards.length) * 100);
+}
+
+function renderCtfSubjects(){
+  const box=document.querySelector("#ctfSubjectsGrid");
+  if(!box) return;
+  box.innerHTML="";
+  db.subjects.forEach(s=>{
+    const progress=Math.max(Number(s.progress||0), subjectProgress(s.name));
+    const decks=db.decks.filter(d => (d.topic||"").toLowerCase().includes(s.name.toLowerCase()) || (d.name||"").toLowerCase().includes(s.name.toLowerCase()));
+    const cards=decks.reduce((a,d)=>a+(d.cards?.length||0),0);
+    const exam=db.exams.find(e=>e.subject===s.name);
+    box.insertAdjacentHTML("beforeend",`
+      <div class="subjectCard">
+        <h3>${esc(subjectIcon(s.name))} ${esc(s.name)}</h3>
+        <div class="small">${cards} flashcard • ${decks.length} capitoli/mazzi</div>
+        <div class="progressBar"><span style="width:${progress}%"></span></div>
+        <div class="small">Preparazione: ${progress}%</div>
+        <div class="small">${exam ? "Esame: "+esc(formatDate(exam.date)) : "Nessun esame impostato"}</div>
+        <div class="itemActions">
+          <button type="button" onclick="createDeckForSubject('${escAttr(s.name)}')">Crea capitolo</button>
+          <button type="button" class="secondary" onclick="openTutorForSubject('${escAttr(s.name)}')">Tutor</button>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function subjectIcon(name){
+  if(name.includes("Farmacologia")) return "💊";
+  if(name.includes("Organica")) return "⚗️";
+  if(name.includes("Biochimica")) return "🧬";
+  if(name.includes("Tossicologia")) return "☠️";
+  if(name.includes("Microbiologia")) return "🦠";
+  if(name.includes("Fisiologia")) return "🫀";
+  return "🧪";
+}
+
+function fillCtfSelects(){
+  ["examSubject","tutorSubject","oralSubject"].forEach(id=>{
+    const sel=document.querySelector("#"+id);
+    if(!sel) return;
+    const old=sel.value;
+    sel.innerHTML=db.subjects.map(s=>`<option value="${escAttr(s.name)}">${esc(s.name)}</option>`).join("");
+    if(old) sel.value=old;
+  });
+}
+
+function createDeckForSubject(subject){
+  showView("create");
+  const topic=document.querySelector("#deckTopic");
+  const name=document.querySelector("#deckName");
+  if(topic) topic.value=subject;
+  if(name) name.value=subject+" - Capitolo ";
+}
+
+function openTutorForSubject(subject){
+  showView("tutor");
+  const sel=document.querySelector("#tutorSubject");
+  if(sel) sel.value=subject;
+}
+window.createDeckForSubject=createDeckForSubject;
+window.openTutorForSubject=openTutorForSubject;
+
+document.querySelector("#saveExamBtn")?.addEventListener("click",()=>{
+  const subject=document.querySelector("#examSubject").value;
+  const date=document.querySelector("#examDate").value;
+  const cfu=document.querySelector("#examCfu").value;
+  const difficulty=document.querySelector("#examDifficulty").value;
+  if(!subject || !date) return alert("Inserisci materia e data esame.");
+  const existing=db.exams.find(e=>e.subject===subject);
+  if(existing){ existing.date=date; existing.cfu=cfu; existing.difficulty=difficulty; }
+  else db.exams.push({id:uid(),subject,date,cfu,difficulty,created:new Date().toISOString()});
+  const s=db.subjects.find(x=>x.name===subject);
+  if(s){s.examDate=date;s.cfu=cfu;s.difficulty=difficulty;}
+  save();
+  alert("Esame salvato.");
+});
+
+function renderExams(){
+  const box=document.querySelector("#examList");
+  if(!box) return;
+  if(!db.exams.length){ box.innerHTML='<div class="item">Nessun esame inserito.</div>'; return; }
+  box.innerHTML="";
+  db.exams.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(e=>{
+    const days=daysTo(e.date);
+    box.insertAdjacentHTML("beforeend",`
+      <div class="item">
+        <div class="examRow">
+          <div>
+            <b>${esc(e.subject)}</b>
+            <div class="small">${formatDate(e.date)} • ${days>=0 ? days+" giorni mancanti" : "esame passato"} • CFU ${esc(e.cfu||"-")} • difficoltà ${esc(e.difficulty||"-")}/10</div>
+          </div>
+          <div class="itemActions">
+            <button type="button" onclick="studyPlan('${escAttr(e.id)}')">Piano studio</button>
+            <button type="button" class="secondary" onclick="deleteExam('${escAttr(e.id)}')">Elimina</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function renderNextExam(){
+  const box=document.querySelector("#nextExamBox");
+  if(!box) return;
+  const future=db.exams.filter(e=>daysTo(e.date)>=0).sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
+  if(!future){ box.textContent="Nessun esame inserito."; return; }
+  box.innerHTML=`<b>${esc(future.subject)}</b><br>${formatDate(future.date)} • mancano ${daysTo(future.date)} giorni`;
+}
+
+function deleteExam(id){
+  if(confirm("Eliminare questo esame?")){
+    db.exams=db.exams.filter(e=>e.id!==id);
+    save();
+  }
+}
+window.deleteExam=deleteExam;
+
+function studyPlan(id){
+  const e=db.exams.find(x=>x.id===id);
+  if(!e) return;
+  const days=Math.max(1,daysTo(e.date));
+  const difficulty=Number(e.difficulty||6);
+  const cfu=Number(e.cfu||9);
+  const hours=Math.ceil(cfu*difficulty*1.5);
+  const perDay=Math.max(1,Math.ceil(hours/days));
+  alert(`Piano studio per ${e.subject}\\nOre stimate: ${hours}\\nGiorni disponibili: ${days}\\nOre consigliate al giorno: ${perDay}`);
+}
+window.studyPlan=studyPlan;
+
+async function tutorCall(mode){
+  const url=getWorkerUrl();
+  if(!url) return alert("Inserisci URL Worker in Impostazioni.");
+  const subject=document.querySelector("#tutorSubject").value;
+  const q=document.querySelector("#tutorQuestion").value.trim();
+  if(!q) return alert("Scrivi una domanda o un argomento.");
+  const out=document.querySelector("#tutorAnswer");
+  out.textContent="Tutor AI in elaborazione...";
+  try{
+    let endpoint="/explain";
+    let text=q;
+    if(mode==="summary") endpoint="/summary";
+    if(mode==="cards") endpoint="/generate";
+    if(mode==="quiz") endpoint="/summary", text="Crea domande universitarie d'esame su: "+q;
+    const r=await fetch(url+endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,topic:subject,count:10})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error||"Errore AI");
+    if(data.cards){
+      out.textContent="Flashcard generate. Vai su Crea per salvarle in un mazzo.";
+      draftCards = draftCards.concat(data.cards.map(c=>({id:uid(),q:c.question,a:c.answer,due:today(),box:0,ok:0,ko:0})));
+      document.querySelector("#deckTopic").value=subject;
+      document.querySelector("#deckName").value=subject+" - Tutor AI";
+      renderPreview();
+    }else{
+      out.textContent=data.result || JSON.stringify(data,null,2);
+    }
+  }catch(e){out.textContent="Errore Tutor AI: "+e.message;}
+}
+document.querySelector("#tutorExplainBtn")?.addEventListener("click",()=>tutorCall("explain"));
+document.querySelector("#tutorSummaryBtn")?.addEventListener("click",()=>tutorCall("summary"));
+document.querySelector("#tutorQuizBtn")?.addEventListener("click",()=>tutorCall("quiz"));
+document.querySelector("#tutorCardsBtn")?.addEventListener("click",()=>tutorCall("cards"));
+
+document.querySelector("#oralEvaluateBtn")?.addEventListener("click",async()=>{
+  const url=getWorkerUrl();
+  if(!url) return alert("Inserisci URL Worker in Impostazioni.");
+  const topic=document.querySelector("#oralSubject").value;
+  const question=document.querySelector("#oralQuestion").value.trim();
+  const answer=document.querySelector("#oralAnswer").value.trim();
+  const out=document.querySelector("#oralResult");
+  if(!question||!answer) return alert("Inserisci domanda e risposta.");
+  out.textContent="Valutazione in corso...";
+  try{
+    const r=await fetch(url+"/oral",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({topic,question,answer})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error||"Errore AI");
+    out.textContent=`Voto simulato: ${data.vote30}/30
+Correttezza: ${data.correctness}%
+Completezza: ${data.completeness}%
+Chiarezza: ${data.clarity}%
+
+Feedback:
+${data.feedback}
+
+Punti mancanti:
+${(data.missing_points||[]).join("\\n")}
+
+Risposta migliorata:
+${data.improved_answer}`;
+  }catch(e){out.textContent="Errore valutazione: "+e.message;}
+});
+
+document.querySelector("#drugGenerateBtn")?.addEventListener("click",async()=>{
+  const url=getWorkerUrl();
+  if(!url) return alert("Inserisci URL Worker in Impostazioni.");
+  const drug=document.querySelector("#drugName").value.trim();
+  const out=document.querySelector("#drugResult");
+  if(!drug) return alert("Inserisci il nome del farmaco.");
+  out.textContent="Generazione scheda farmaco...";
+  try{
+    const r=await fetch(url+"/drug",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({drug})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error||"Errore AI");
+    out.textContent=data.result;
+  }catch(e){out.textContent="Errore farmaco: "+e.message;}
+});
+
+function daysTo(dateStr){
+  const d=new Date(dateStr+"T00:00:00");
+  const now=new Date(); now.setHours(0,0,0,0);
+  return Math.ceil((d-now)/(1000*60*60*24));
+}
+function formatDate(dateStr){
+  if(!dateStr) return "-";
+  return new Date(dateStr+"T00:00:00").toLocaleDateString("it-IT");
+}
+function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
+
+refresh();
