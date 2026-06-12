@@ -1186,3 +1186,12 @@ window.deleteSubjectV13 = deleteSubjectV13;
 window.renderCtfSubjects = renderCtfSubjects;
 
 refresh();
+
+/* ===== V14 MESSAGGI QUOTA PIÙ CHIARI ===== */
+function friendlyAiError(message){
+  const m = String(message || "");
+  if(m.toLowerCase().includes("quota") || m.toLowerCase().includes("rate") || m.includes("429")){
+    return "Limite temporaneo AI raggiunto. Se OpenRouter è configurato, l'app passerà al provider alternativo. Se continua, attendi qualche minuto.";
+  }
+  return m;
+}
