@@ -1004,3 +1004,73 @@ document.querySelector("#aiMoreCardsBtn")?.addEventListener("click", (e)=>{
   e.preventDefault();
   aiExtra("generate");
 });
+
+
+/* ===== V12 FIX DEFINITIVO SIMULAZIONE ORALE ===== */
+function oralSetMessage(msg){
+  const out = document.querySelector("#oralResult");
+  if(out) out.textContent = msg || "";
+}
+
+async function generateOralQuestionV12(){
+  const url = getWorkerUrl ? getWorkerUrl() : ((db.settings?.workerUrl || "").trim().replace(/\/$/,""));
+  const subject = document.querySelector("#oralSubject")?.value || "CTF";
+  const detail = document.querySelector("#oralTopicDetail")?.value.trim() || "";
+  const topic = detail ? subject + " - " + detail : subject;
+
+  if(!url){
+    oralSetMessage("Errore: inserisci prima l'URL del Worker in Impostazioni.");
+    alert("Inserisci prima l'URL del Worker in Impostazioni.");
+    return;
+  }
+
+  if(!detail){
+    oralSetMessage("Scrivi prima un argomento specifico, ad esempio: ciclo di Krebs, beta-lattamici, farmacocinetica.");
+    alert("Scrivi prima un argomento specifico.");
+    return;
+  }
+
+  oralSetMessage("Sto generando una domanda da professore...");
+
+  try{
+    const r = await fetch(url + "/oral-question", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ topic, context: detail, level: "universitario" })
+    });
+
+    let data;
+    try{
+      data = await r.json();
+    }catch(_){
+      throw new Error("Risposta del Worker non valida. Controlla che worker-cloudflare.js sia aggiornato.");
+    }
+
+    if(!r.ok){
+      throw new Error(data.error || "Errore generazione domanda.");
+    }
+
+    if(!data.question){
+      throw new Error("Il Worker ha risposto ma non ha restituito il campo question.");
+    }
+
+    document.querySelector("#oralQuestion").value = data.question;
+    oralSetMessage("Domanda generata. Ora scrivi la risposta e premi 'Valuta risposta'.");
+
+  }catch(e){
+    oralSetMessage("Errore generazione domanda: " + e.message + "\n\nControlla di aver sostituito anche worker-cloudflare.js su Cloudflare e poi premi Save and deploy.");
+  }
+}
+
+document.querySelector("#oralGenerateQuestionBtn")?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  generateOralQuestionV12();
+});
+
+/* Rende cliccabile anche nel caso in cui il vecchio listener non fosse agganciato */
+document.addEventListener("click", (e)=>{
+  if(e.target && e.target.id === "oralGenerateQuestionBtn"){
+    e.preventDefault();
+    generateOralQuestionV12();
+  }
+});
