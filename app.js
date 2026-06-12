@@ -9,7 +9,113 @@ let currentQuiz = null;
 let deferredPrompt = null;
 
 function load(){ return JSON.parse(localStorage.getItem(storeKey) || '{"decks":[],"xp":0,"settings":{"workerUrl":""}}'); }
-function save(){ localStorage.setItem(storeKey, JSON.stringify(db)); refresh(); }
+function save(){ localStorage.setItem(storeKey, JSON.stringify(db)); 
+document.addEventListener("input", e=>{
+  if(e.target && e.target.id==="deckSearch") renderDecks();
+});
+
+function quickStudy(id){
+  showView("study");
+  $("#studyDeckSelect").value=id;
+  $("#startStudyBtn").click();
+}
+function quickManage(id){
+  showView("manage");
+  $("#manageDeckSelect").value=id;
+  renderManage();
+}
+window.quickStudy=quickStudy;
+window.quickManage=quickManage;
+
+async function aiExtra(endpoint){
+  const text=$("#sourceText").value.trim();
+  const url=(db.settings.workerUrl||"").trim();
+  if(!text) return alert("Inserisci o importa prima un testo.");
+  if(!url) return alert("Inserisci prima l'URL del Cloudflare Worker nelle Impostazioni.");
+  $("#aiExtraBox").textContent="Elaborazione AI in corso...";
+  try{
+    const r=await fetch(url+"/"+endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text, topic:$("#deckTopic").value||"studio", count:10})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error||"Errore AI");
+    $("#aiExtraBox").textContent=data.result || JSON.stringify(data,null,2);
+    if(endpoint==="generate" && data.cards){
+      draftCards=draftCards.concat(data.cards.map(c=>({id:uid(),q:c.question,a:c.answer,due:today(),box:0,ok:0,ko:0})));
+      renderPreview();
+      $("#aiExtraBox").textContent="Aggiunte altre flashcard al mazzo.";
+    }
+  }catch(e){ $("#aiExtraBox").textContent="Errore AI: "+e.message; }
+}
+$("#aiSummaryBtn") && ($("#aiSummaryBtn").onclick=()=>aiExtra("summary"));
+$("#aiExplainBtn") && ($("#aiExplainBtn").onclick=()=>aiExtra("explain"));
+$("#aiMoreCardsBtn") && ($("#aiMoreCardsBtn").onclick=()=>aiExtra("generate"));
+
+function renderManage(){
+  const sel=$("#manageDeckSelect");
+  const box=$("#manageCards");
+  if(!sel || !box) return;
+  const d=db.decks.find(x=>x.id===sel.value) || db.decks[0];
+  if(!d){ box.innerHTML='<div class="item">Nessun mazzo salvato.</div>'; return; }
+  sel.value=d.id;
+  box.innerHTML=`
+    <div class="item">
+      <b>${esc(d.name)}</b>
+      <div class="small">${esc(d.topic||"")} • ${d.cards.length} schede</div>
+      <div class="itemActions">
+        <button onclick="addCardToDeck('${d.id}')">Aggiungi scheda</button>
+        <button class="secondary" onclick="renameDeck('${d.id}')">Rinomina</button>
+      </div>
+    </div>`;
+  d.cards.forEach((c,i)=>{
+    box.insertAdjacentHTML("beforeend",`
+      <div class="item">
+        <b>${i+1}. ${esc(c.q)}</b>
+        <div class="small">${esc(c.a)}</div>
+        <span class="badge">Ripasso: ${c.due||today()}</span>
+        <div class="itemActions">
+          <button class="secondary" onclick="editCard('${d.id}','${c.id}')">Modifica</button>
+          <button class="secondary" onclick="deleteCard('${d.id}','${c.id}')">Elimina</button>
+        </div>
+      </div>`);
+  });
+}
+$("#manageDeckSelect") && ($("#manageDeckSelect").onchange=renderManage);
+
+function renameDeck(deckId){
+  const d=db.decks.find(x=>x.id===deckId); if(!d) return;
+  const name=prompt("Nuovo nome mazzo:", d.name);
+  if(name){ d.name=name.trim(); save(); }
+}
+function addCardToDeck(deckId){
+  const d=db.decks.find(x=>x.id===deckId); if(!d) return;
+  const q=prompt("Domanda:");
+  if(!q) return;
+  const a=prompt("Risposta:");
+  if(!a) return;
+  d.cards.push({id:uid(),q,a,due:today(),box:0,ok:0,ko:0});
+  save();
+}
+function editCard(deckId, cardId){
+  const d=db.decks.find(x=>x.id===deckId); if(!d) return;
+  const c=d.cards.find(x=>x.id===cardId); if(!c) return;
+  const q=prompt("Modifica domanda:", c.q);
+  if(!q) return;
+  const a=prompt("Modifica risposta:", c.a);
+  if(!a) return;
+  c.q=q; c.a=a; save();
+}
+function deleteCard(deckId, cardId){
+  const d=db.decks.find(x=>x.id===deckId); if(!d) return;
+  if(confirm("Eliminare questa scheda?")){
+    d.cards=d.cards.filter(c=>c.id!==cardId);
+    save();
+  }
+}
+window.renameDeck=renameDeck;
+window.addCardToDeck=addCardToDeck;
+window.editCard=editCard;
+window.deleteCard=deleteCard;
+
+refresh(); }
 function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
 function today(){ return new Date().toISOString().slice(0,10); }
 function dueDate(days){ const d=new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
@@ -29,21 +135,26 @@ function refresh(){
   $("#dueCount").textContent=db.decks.flatMap(d=>d.cards).filter(c=>(c.due||today())<=today()).length;
   $("#xpCount").textContent=db.xp||0;
   $("#workerUrl").value=db.settings.workerUrl||"";
-  renderDecks(); fillSelects(); renderStats();
+  renderDecks(); fillSelects(); renderStats(); renderManage();
 }
 function renderDecks(){
   const box=$("#deckList"); box.innerHTML="";
-  if(!db.decks.length){ box.innerHTML='<div class="item">Ancora nessun mazzo. Vai su “Crea”.</div>'; return; }
-  db.decks.slice().reverse().forEach(d=>{
+  const q=($("#deckSearch")?.value||"").toLowerCase();
+  let decks=db.decks.slice().reverse();
+  if(q){
+    decks=decks.filter(d => (d.name+" "+(d.topic||"")+" "+d.cards.map(c=>c.q+" "+c.a).join(" ")).toLowerCase().includes(q));
+  }
+  if(!decks.length){ box.innerHTML='<div class="item">Nessun mazzo trovato.</div>'; return; }
+  decks.forEach(d=>{
     const due=d.cards.filter(c=>(c.due||today())<=today()).length;
-    box.insertAdjacentHTML("beforeend",`<div class="item"><b>${esc(d.name)}</b><div class="small">${d.topic||""} • ${d.cards.length} schede • ${due} da ripassare</div><button class="secondary" onclick="deleteDeck('${d.id}')">Elimina</button></div>`);
+    box.insertAdjacentHTML("beforeend",`<div class="item"><b>${esc(d.name)}</b><div class="small">${d.topic||""} • ${d.cards.length} schede • ${due} da ripassare</div><span class="badge">Creato: ${(d.created||"").slice(0,10)}</span><div class="itemActions"><button onclick="quickStudy('${d.id}')">Studia</button><button class="secondary" onclick="quickManage('${d.id}')">Gestisci</button><button class="secondary" onclick="deleteDeck('${d.id}')">Elimina</button></div></div>`);
   });
 }
 function deleteDeck(id){ if(confirm("Eliminare questo mazzo?")){ db.decks=db.decks.filter(d=>d.id!==id); save(); } }
 window.deleteDeck=deleteDeck;
 
 function fillSelects(){
-  ["studyDeckSelect","quizDeckSelect"].forEach(id=>{
+  ["studyDeckSelect","quizDeckSelect","manageDeckSelect"].forEach(id=>{
     const s=$("#"+id); const old=s.value; s.innerHTML=db.decks.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join("");
     if(old) s.value=old;
   });

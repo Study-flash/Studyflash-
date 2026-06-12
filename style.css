@@ -18,3 +18,8 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 .options{display:grid;gap:10px}.option{text-align:left;background:#27314f}.correct{outline:3px solid #22c55e}.wrong{outline:3px solid #ef4444}
 .danger{border-color:#ef444455}.danger button{background:var(--danger)}
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.topbar{align-items:flex-start}.app{padding:12px}.hero{padding:20px}.tabs button{padding:10px 12px}}
+
+.aiBox{margin-top:12px;background:#070b17;border:1px solid #ffffff18;border-radius:18px;padding:14px;white-space:pre-wrap;color:#fef3c7}
+.itemActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.itemActions button{padding:8px 10px;border-radius:10px;font-size:13px}
+.badge{display:inline-block;background:#ffffff18;border:1px solid #ffffff20;border-radius:999px;padding:4px 8px;margin:4px 4px 0 0;color:#dbeafe;font-size:12px}

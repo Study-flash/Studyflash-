@@ -25,6 +25,7 @@
       <button class="tab" data-view="create">Crea</button>
       <button class="tab" data-view="study">Studia</button>
       <button class="tab" data-view="quiz">Quiz</button>
+      <button class="tab" data-view="manage">Gestione</button>
       <button class="tab" data-view="stats">Statistiche</button>
       <button class="tab" data-view="settings">Impostazioni</button>
     </nav>
@@ -46,6 +47,7 @@
           <div class="card"><b id="xpCount">0</b><span>XP</span></div>
         </div>
         <h3>Ultimi mazzi</h3>
+        <input id="deckSearch" placeholder="Cerca nei mazzi e nelle flashcard...">
         <div id="deckList" class="list"></div>
       </section>
 
@@ -77,6 +79,16 @@
           <input id="manualQ" placeholder="Domanda">
           <textarea id="manualA" rows="4" placeholder="Risposta"></textarea>
           <button id="addManualBtn">Aggiungi flashcard</button>
+        </div>
+
+        <div class="panel">
+          <h3>Strumenti AI extra</h3>
+          <div class="actions">
+            <button id="aiSummaryBtn" class="secondary">Crea riassunto</button>
+            <button id="aiExplainBtn" class="secondary">Spiega semplice</button>
+            <button id="aiMoreCardsBtn" class="secondary">Aggiungi altre 10 flashcard</button>
+          </div>
+          <div id="aiExtraBox" class="aiBox"></div>
         </div>
 
         <div class="panel">
@@ -120,6 +132,15 @@
           <div id="quizOptions" class="options"></div>
           <div id="quizFeedback"></div>
           <button id="nextQuizBtn" class="hidden">Prossima</button>
+        </div>
+      </section>
+
+      <section id="manage" class="view">
+        <div class="panel">
+          <h2>Gestione mazzi</h2>
+          <p class="muted">Qui puoi modificare, eliminare o aggiungere schede ai mazzi già salvati.</p>
+          <select id="manageDeckSelect"></select>
+          <div id="manageCards" class="list"></div>
         </div>
       </section>
 
