@@ -109,8 +109,13 @@
           <h2>Simulazione orale CTF</h2>
           <label>Materia</label>
           <select id="oralSubject"></select>
+          <label>Argomento specifico da studiare</label>
+          <input id="oralTopicDetail" placeholder="Esempio: beta-lattamici, ciclo di Krebs, farmacocinetica">
           <label>Domanda del professore</label>
-          <textarea id="oralQuestion" rows="3" placeholder="Esempio: Mi descriva il meccanismo d'azione dei beta-lattamici."></textarea>
+          <textarea id="oralQuestion" rows="3" placeholder="Premi 'Genera domanda' oppure scrivila manualmente."></textarea>
+          <div class="actions">
+            <button id="oralGenerateQuestionBtn" class="secondary">Genera domanda</button>
+          </div>
           <label>Risposta dello studente</label>
           <textarea id="oralAnswer" rows="6" placeholder="Scrivi qui la risposta oppure dettala con la tastiera vocale del telefono."></textarea>
           <button id="oralEvaluateBtn">Valuta risposta</button>

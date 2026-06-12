@@ -31,3 +31,6 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 .progressBar span{display:block;height:100%;background:linear-gradient(90deg,#8b5cf6,#facc15);border-radius:999px}
 .ctfHighlight{background:#070b17;border:1px solid #ffffff18;border-radius:18px;padding:16px;font-size:18px}
 .examRow{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+
+.aiBox{line-height:1.55;font-size:15.5px}
+.aiBox::first-line{font-weight:700}
