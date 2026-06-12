@@ -55,7 +55,7 @@
         <div class="panel">
           <h2>Crea un nuovo mazzo</h2>
           <label>Nome mazzo</label>
-          <input id="deckName" placeholder="Esempio: Inglese, PLC Siemens, Robot ABB">
+          <input id="deckName" placeholder="Dai un nome al mazzo, es. Diritto Privato - Capitolo 1">
           <label>Materia / argomento</label>
           <input id="deckTopic" placeholder="Esempio: verbi irregolari, sicurezza robot, storia">
         </div>
@@ -141,6 +141,9 @@
           <h2>Gestione mazzi</h2>
           <p class="muted">Qui puoi modificare, eliminare o aggiungere schede ai mazzi già salvati.</p>
           <select id="manageDeckSelect"></select>
+          <div class="actions">
+            <button id="renameSelectedDeckBtn" class="secondary">Rinomina mazzo selezionato</button>
+          </div>
           <div id="manageCards" class="list"></div>
         </div>
       </section>
@@ -158,6 +161,19 @@
           <p class="muted">Inserisci l'URL del tuo Cloudflare Worker. La chiave API non va mai messa dentro GitHub Pages.</p>
           <input id="workerUrl" placeholder="https://tuo-worker.nome.workers.dev">
           <button id="saveSettingsBtn">Salva impostazioni</button>
+        </div>
+
+        <div class="panel">
+          <h3>Cloud D1</h3>
+          <p class="muted">Inserisci email e PIN personale per salvare e recuperare i dati online da telefono e PC.</p>
+          <input id="cloudEmail" placeholder="Email studente">
+          <input id="cloudPin" placeholder="PIN personale" type="password">
+          <div class="actions">
+            <button id="cloudLoginBtn">Accedi / crea profilo</button>
+            <button id="cloudSaveBtn" class="secondary">Salva online</button>
+            <button id="cloudLoadBtn" class="secondary">Scarica dal cloud</button>
+          </div>
+          <div id="cloudStatus" class="muted"></div>
         </div>
 
         <div class="panel">

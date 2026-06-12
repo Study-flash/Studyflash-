@@ -353,3 +353,294 @@ $("#resetBtn").onclick=()=>{ if(confirm("Cancellare tutti i dati?")){ localStora
 
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
 refresh();
+
+
+/* ===== FIX V4 MAZZI: pulsanti Home + nomi mazzi + gestione stabile ===== */
+
+function getDeckByIdSafe(id){
+  return db.decks.find(d => String(d.id) === String(id));
+}
+
+function askDeckNameIfNeeded(){
+  const input = document.querySelector("#deckName");
+  if(!input) return "Nuovo mazzo";
+  let name = input.value.trim();
+  if(!name){
+    name = prompt("Inserisci il nome del mazzo:", "Nuovo mazzo") || "Nuovo mazzo";
+    input.value = name.trim();
+  }
+  return name.trim() || "Nuovo mazzo";
+}
+
+// Sovrascrive il salvataggio per obbligare/aiutare a dare un nome al mazzo.
+const saveDeckBtnV4 = document.querySelector("#saveDeckBtn");
+if(saveDeckBtnV4){
+  saveDeckBtnV4.onclick = () => {
+    const name = askDeckNameIfNeeded();
+    if(!draftCards.length) return alert("Non ci sono flashcard da salvare.");
+    db.decks.push({
+      id: uid(),
+      name,
+      topic: document.querySelector("#deckTopic")?.value.trim() || "",
+      created: new Date().toISOString(),
+      cards: draftCards
+    });
+    draftCards = [];
+    document.querySelector("#deckName").value = "";
+    document.querySelector("#deckTopic").value = "";
+    document.querySelector("#sourceText").value = "";
+    renderPreview();
+    save();
+    showView("home");
+  };
+}
+
+// Render mazzi robusto: niente onclick inline che può bloccarsi.
+function renderDecks(){
+  const box = document.querySelector("#deckList");
+  if(!box) return;
+  box.innerHTML = "";
+
+  const q = (document.querySelector("#deckSearch")?.value || "").toLowerCase();
+  let decks = db.decks.slice().reverse();
+
+  if(q){
+    decks = decks.filter(d => (
+      (d.name || "") + " " +
+      (d.topic || "") + " " +
+      d.cards.map(c => (c.q || "") + " " + (c.a || "")).join(" ")
+    ).toLowerCase().includes(q));
+  }
+
+  if(!decks.length){
+    box.innerHTML = '<div class="item">Nessun mazzo trovato. Vai su “Crea” per crearne uno.</div>';
+    return;
+  }
+
+  decks.forEach(d => {
+    const due = d.cards.filter(c => (c.due || today()) <= today()).length;
+    const el = document.createElement("div");
+    el.className = "item";
+    el.dataset.deckId = d.id;
+    el.innerHTML = `
+      <b>${esc(d.name || "Senza nome")}</b>
+      <div class="small">${esc(d.topic || "")} • ${d.cards.length} schede • ${due} da ripassare</div>
+      <span class="badge">Creato: ${((d.created || "").slice(0,10)) || today()}</span>
+      <div class="itemActions">
+        <button type="button" class="homeStudyBtn">Studia</button>
+        <button type="button" class="secondary homeManageBtn">Gestisci</button>
+        <button type="button" class="secondary homeRenameBtn">Rinomina</button>
+        <button type="button" class="secondary homeDeleteBtn">Elimina</button>
+      </div>
+    `;
+    box.appendChild(el);
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const item = e.target.closest("#deckList .item");
+  if(!item) return;
+  const deckId = item.dataset.deckId;
+
+  if(e.target.closest(".homeStudyBtn")){
+    const d = getDeckByIdSafe(deckId);
+    if(!d) return alert("Mazzo non trovato.");
+    showView("study");
+    const sel = document.querySelector("#studyDeckSelect");
+    if(sel) sel.value = d.id;
+    setTimeout(() => document.querySelector("#startStudyBtn")?.click(), 50);
+  }
+
+  if(e.target.closest(".homeManageBtn")){
+    const d = getDeckByIdSafe(deckId);
+    if(!d) return alert("Mazzo non trovato.");
+    showView("manage");
+    const sel = document.querySelector("#manageDeckSelect");
+    if(sel) sel.value = d.id;
+    renderManage();
+  }
+
+  if(e.target.closest(".homeRenameBtn")){
+    renameDeck(deckId);
+  }
+
+  if(e.target.closest(".homeDeleteBtn")){
+    deleteDeck(deckId);
+  }
+});
+
+function deleteDeck(id){
+  const d = getDeckByIdSafe(id);
+  if(!d) return alert("Mazzo non trovato.");
+  if(confirm(`Eliminare il mazzo "${d.name || "Senza nome"}"?`)){
+    db.decks = db.decks.filter(x => String(x.id) !== String(id));
+    save();
+  }
+}
+window.deleteDeck = deleteDeck;
+
+function renameDeck(deckId){
+  const d = getDeckByIdSafe(deckId);
+  if(!d) return alert("Mazzo non trovato.");
+  const name = prompt("Nuovo nome del mazzo:", d.name || "Senza nome");
+  if(name && name.trim()){
+    d.name = name.trim();
+    save();
+  }
+}
+window.renameDeck = renameDeck;
+
+function renderManage(){
+  const sel = document.querySelector("#manageDeckSelect");
+  const box = document.querySelector("#manageCards");
+  if(!sel || !box) return;
+
+  const d = getDeckByIdSafe(sel.value) || db.decks[0];
+  if(!d){
+    box.innerHTML = '<div class="item">Nessun mazzo salvato.</div>';
+    return;
+  }
+
+  sel.value = d.id;
+  box.innerHTML = `
+    <div class="item">
+      <b>${esc(d.name || "Senza nome")}</b>
+      <div class="small">${esc(d.topic || "")} • ${d.cards.length} schede</div>
+      <div class="itemActions">
+        <button type="button" onclick="addCardToDeck('${d.id}')">Aggiungi scheda</button>
+        <button type="button" class="secondary" onclick="renameDeck('${d.id}')">Rinomina</button>
+        <button type="button" class="secondary" onclick="deleteDeck('${d.id}')">Elimina mazzo</button>
+      </div>
+    </div>
+  `;
+
+  d.cards.forEach((c, i) => {
+    box.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <b>${i+1}. ${esc(c.q || "")}</b>
+        <div class="small">${esc(c.a || "")}</div>
+        <span class="badge">Ripasso: ${c.due || today()}</span>
+        <div class="itemActions">
+          <button type="button" class="secondary" onclick="editCard('${d.id}','${c.id}')">Modifica</button>
+          <button type="button" class="secondary" onclick="deleteCard('${d.id}','${c.id}')">Elimina</button>
+        </div>
+      </div>
+    `);
+  });
+}
+window.renderManage = renderManage;
+
+const manageDeckSelectV4 = document.querySelector("#manageDeckSelect");
+if(manageDeckSelectV4){
+  manageDeckSelectV4.onchange = renderManage;
+}
+
+const renameSelectedDeckBtn = document.querySelector("#renameSelectedDeckBtn");
+if(renameSelectedDeckBtn){
+  renameSelectedDeckBtn.onclick = () => {
+    const id = document.querySelector("#manageDeckSelect")?.value;
+    if(id) renameDeck(id);
+  };
+}
+
+function fillSelects(){
+  ["studyDeckSelect","quizDeckSelect","manageDeckSelect"].forEach(id => {
+    const s = document.querySelector("#"+id);
+    if(!s) return;
+    const old = s.value;
+    s.innerHTML = db.decks.map(d => `<option value="${esc(d.id)}">${esc(d.name || "Senza nome")}</option>`).join("");
+    if(old && db.decks.some(d => String(d.id) === String(old))) s.value = old;
+  });
+}
+window.fillSelects = fillSelects;
+
+function addCardToDeck(deckId){
+  const d = getDeckByIdSafe(deckId);
+  if(!d) return alert("Mazzo non trovato.");
+  const q = prompt("Domanda:");
+  if(!q || !q.trim()) return;
+  const a = prompt("Risposta:");
+  if(!a || !a.trim()) return;
+  d.cards.push({id:uid(), q:q.trim(), a:a.trim(), due:today(), box:0, ok:0, ko:0});
+  save();
+}
+window.addCardToDeck = addCardToDeck;
+
+function editCard(deckId, cardId){
+  const d = getDeckByIdSafe(deckId);
+  if(!d) return alert("Mazzo non trovato.");
+  const c = d.cards.find(x => String(x.id) === String(cardId));
+  if(!c) return alert("Scheda non trovata.");
+  const q = prompt("Modifica domanda:", c.q || "");
+  if(!q || !q.trim()) return;
+  const a = prompt("Modifica risposta:", c.a || "");
+  if(!a || !a.trim()) return;
+  c.q = q.trim();
+  c.a = a.trim();
+  save();
+}
+window.editCard = editCard;
+
+function deleteCard(deckId, cardId){
+  const d = getDeckByIdSafe(deckId);
+  if(!d) return alert("Mazzo non trovato.");
+  if(confirm("Eliminare questa scheda?")){
+    d.cards = d.cards.filter(c => String(c.id) !== String(cardId));
+    save();
+  }
+}
+window.deleteCard = deleteCard;
+
+document.querySelector("#deckSearch")?.addEventListener("input", renderDecks);
+
+// Aggiorna subito interfaccia dopo il caricamento del fix.
+refresh();
+
+/* ===== V6 CLOUD D1 ===== */
+function cloudSetStatus(msg){const el=document.querySelector("#cloudStatus"); if(el) el.textContent=msg;}
+function getWorkerUrl(){return (db.settings?.workerUrl||document.querySelector("#workerUrl")?.value||"").trim().replace(/\/$/,"");}
+async function cloudLogin(){
+  const url=getWorkerUrl(), email=document.querySelector("#cloudEmail")?.value.trim(), pin=document.querySelector("#cloudPin")?.value.trim();
+  if(!url) return alert("Inserisci prima l'URL del Worker.");
+  if(!email||!pin) return alert("Inserisci email e PIN.");
+  cloudSetStatus("Accesso al cloud in corso...");
+  try{
+    await fetch(url+"/db/init",{method:"POST"});
+    const r=await fetch(url+"/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,pin,name:email.split("@")[0]})});
+    const data=await r.json();
+    if(!r.ok||!data.ok) throw new Error(data.error||"Errore login cloud");
+    db.settings.cloudEmail=email; db.settings.userId=data.userId; save();
+    cloudSetStatus("Cloud collegato correttamente.");
+  }catch(e){cloudSetStatus("Errore cloud: "+e.message);}
+}
+async function cloudSave(){
+  const url=getWorkerUrl(), userId=db.settings?.userId;
+  if(!url) return alert("Inserisci l'URL del Worker.");
+  if(!userId) return alert("Prima fai Accedi / crea profilo.");
+  cloudSetStatus("Salvataggio online in corso...");
+  try{
+    const r=await fetch(url+"/cloud/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId,data:db})});
+    const data=await r.json();
+    if(!r.ok||!data.ok) throw new Error(data.error||"Errore salvataggio cloud");
+    cloudSetStatus("Dati salvati online: "+(data.updated_at||""));
+  }catch(e){cloudSetStatus("Errore salvataggio: "+e.message);}
+}
+async function cloudLoad(){
+  const url=getWorkerUrl(), userId=db.settings?.userId;
+  if(!url) return alert("Inserisci l'URL del Worker.");
+  if(!userId) return alert("Prima fai Accedi / crea profilo.");
+  if(!confirm("Scaricare i dati dal cloud? I dati locali verranno sostituiti.")) return;
+  cloudSetStatus("Download dal cloud in corso...");
+  try{
+    const r=await fetch(url+"/cloud/load",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId})});
+    const data=await r.json();
+    if(!r.ok||!data.ok) throw new Error(data.error||"Errore download cloud");
+    if(!data.data){cloudSetStatus("Nessun dato cloud trovato."); return;}
+    db=data.data; localStorage.setItem(storeKey,JSON.stringify(db)); refresh();
+    cloudSetStatus("Dati scaricati dal cloud.");
+  }catch(e){cloudSetStatus("Errore download: "+e.message);}
+}
+document.querySelector("#cloudLoginBtn")?.addEventListener("click",cloudLogin);
+document.querySelector("#cloudSaveBtn")?.addEventListener("click",cloudSave);
+document.querySelector("#cloudLoadBtn")?.addEventListener("click",cloudLoad);
+setTimeout(()=>{if(db.settings?.cloudEmail&&document.querySelector("#cloudEmail")) document.querySelector("#cloudEmail").value=db.settings.cloudEmail;},300);
