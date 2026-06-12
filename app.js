@@ -234,28 +234,82 @@ $("#saveDeckBtn").onclick=()=>{
   draftCards=[]; $("#deckName").value=""; $("#deckTopic").value=""; $("#sourceText").value=""; renderPreview(); save(); showView("home");
 };
 
+
 $("#startStudyBtn").onclick=()=>{
-  const d=db.decks.find(x=>x.id===$("#studyDeckSelect").value); if(!d) return;
+  const d=db.decks.find(x=>x.id===$("#studyDeckSelect").value); 
+  if(!d) return alert("Scegli un mazzo.");
   const due=d.cards.filter(c=>(c.due||today())<=today());
-  currentStudy={deck:d,queue:due.length?due:[...d.cards],card:null};
+  currentStudy={deck:d,queue:(due.length?due:[...d.cards]).sort(()=>Math.random()-0.5),card:null};
   nextStudy();
 };
+
 function nextStudy(){
+  if(!currentStudy || !currentStudy.queue.length){
+    $("#studyBox").classList.add("hidden");
+    alert("Ripasso completato!");
+    save();
+    return;
+  }
+
   const c=currentStudy.queue.shift();
-  if(!c){ $("#studyBox").classList.add("hidden"); alert("Ripasso completato!"); save(); return; }
-  currentStudy.card=c; $("#studyBox").classList.remove("hidden"); $("#flipCard").classList.remove("show");
-  $("#studyQuestion").textContent=c.q; $("#studyAnswer").textContent=c.a; $("#ratingBtns").classList.add("hidden");
+  currentStudy.card=c;
+
+  $("#studyBox").classList.remove("hidden");
+  $("#flipCard").classList.remove("show");
+  $("#studyQuestion").textContent=c.q || "";
+  $("#studyAnswer").textContent=c.a || "";
+  $("#ratingBtns").classList.add("hidden");
+  $("#showAnswerBtn").textContent="Mostra risposta";
 }
-$("#showAnswerBtn").onclick=()=>{ $("#flipCard").classList.add("show"); $("#ratingBtns").classList.remove("hidden"); };
-$("#flipCard").onclick=()=>$("#flipCard").classList.toggle("show");
-$$("[data-rate]").forEach(b=>b.onclick=()=>{
-  const c=currentStudy.card; const r=b.dataset.rate;
-  const days = r==="hard"?1:r==="medium"?3:7;
-  c.due=dueDate(days); c.box=(c.box||0)+(r==="easy"?2:r==="medium"?1:0); c.ok=(c.ok||0)+1; db.xp=(db.xp||0)+(r==="easy"?10:r==="medium"?7:4);
-  save(); nextStudy();
+
+function showCurrentAnswer(){
+  if(!currentStudy || !currentStudy.card) return;
+  $("#flipCard").classList.add("show");
+  $("#ratingBtns").classList.remove("hidden");
+  $("#showAnswerBtn").textContent="Risposta mostrata";
+}
+
+$("#showAnswerBtn").onclick=showCurrentAnswer;
+
+$("#flipCard").onclick=()=>{
+  if(!currentStudy || !currentStudy.card) return;
+  $("#flipCard").classList.toggle("show");
+  if($("#flipCard").classList.contains("show")){
+    $("#ratingBtns").classList.remove("hidden");
+  }
+};
+
+document.addEventListener("click", e=>{
+  const rateBtn=e.target.closest("[data-rate]");
+  if(rateBtn){
+    if(!currentStudy || !currentStudy.card) return;
+    const c=currentStudy.card;
+    const r=rateBtn.dataset.rate;
+    const days = r==="hard" ? 1 : r==="medium" ? 3 : 7;
+    c.due=dueDate(days);
+    c.box=(c.box||0)+(r==="easy"?2:r==="medium"?1:0);
+    c.ok=(c.ok||0)+1;
+    db.xp=(db.xp||0)+(r==="easy"?10:r==="medium"?7:4);
+    save();
+    nextStudy();
+  }
+
+  if(e.target && e.target.id==="skipStudyBtn"){
+    nextStudy();
+  }
 });
-$("#speakBtn").onclick=()=>speak($("#flipCard").classList.contains("show")?$("#studyAnswer").textContent:$("#studyQuestion").textContent);
-function speak(t){ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.lang="it-IT"; speechSynthesis.speak(u); }
+
+$("#speakBtn").onclick=()=>{
+  const shown=$("#flipCard").classList.contains("show");
+  speak(shown ? $("#studyAnswer").textContent : $("#studyQuestion").textContent);
+};
+
+function speak(t){
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(t);
+  u.lang="it-IT";
+  speechSynthesis.speak(u);
+}
 
 $("#startQuizBtn").onclick=()=>{
   const d=db.decks.find(x=>x.id===$("#quizDeckSelect").value); if(!d||d.cards.length<2) return alert("Servono almeno 2 flashcard.");
