@@ -3413,3 +3413,85 @@ window.v28StudiaMateria = v28StudiaMateria;
 window.v28VediMateria = v28VediMateria;
 
 setTimeout(v28BindDashboardButtons, 800);
+
+
+/* ===== V29 FIX QUIZ RAPIDO DAI RIPASSI - MOSTRA RISPOSTA STABILE ===== */
+function v29EscapeForData(text){
+  return encodeURIComponent(String(text || ""));
+}
+
+function v29DecodeData(text){
+  try { return decodeURIComponent(String(text || "")); }
+  catch(_) { return String(text || ""); }
+}
+
+function v29ToggleAnswer(btn){
+  if(!btn) return;
+  const card = btn.closest(".item");
+  if(!card) return;
+
+  let answerBox = card.querySelector(".quickAnswerBox");
+  if(!answerBox){
+    answerBox = document.createElement("div");
+    answerBox.className = "quickAnswerBox aiBox";
+    card.appendChild(answerBox);
+  }
+
+  const answer = v29DecodeData(btn.dataset.answer || "");
+  const visible = answerBox.dataset.visible === "1";
+
+  if(visible){
+    answerBox.textContent = "";
+    answerBox.classList.add("hidden");
+    answerBox.dataset.visible = "0";
+    btn.textContent = "Mostra risposta";
+  }else{
+    answerBox.textContent = answer || "Risposta non disponibile.";
+    answerBox.classList.remove("hidden");
+    answerBox.dataset.visible = "1";
+    btn.textContent = "Nascondi risposta";
+  }
+}
+
+/* Intercetta solo i pulsanti del quiz rapido, evitando che altri listener riportino indietro la pagina */
+document.addEventListener("click", function(e){
+  const btn = e.target.closest(".quickAnswerBtn");
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  v29ToggleAnswer(btn);
+}, true);
+
+/* Sovrascrive il quiz dai ripassi: niente <details>, solo pulsanti controllati da JS */
+function v28QuizRipassi(){
+  const due = v28DueCards ? v28DueCards() : [];
+  if(!due.length){
+    v28Open("Quiz dai ripassi", `<div class="item">Nessuna scheda da ripassare.</div>`);
+    return;
+  }
+
+  let html = `
+    <div class="item">
+      <b>Quiz rapido dai ripassi</b>
+      <div class="small">Prova mentalmente, poi premi “Mostra risposta”.</div>
+    </div>
+  `;
+
+  due.slice(0,30).forEach(({card}, i)=>{
+    const answer = v29EscapeForData(card.a || "");
+    html += `
+      <div class="item quickQuizCard">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <div class="itemActions">
+          <button type="button" class="secondary quickAnswerBtn" data-answer="${answer}">Mostra risposta</button>
+        </div>
+        <div class="quickAnswerBox aiBox hidden" data-visible="0"></div>
+      </div>
+    `;
+  });
+
+  v28Open("Quiz rapido dai ripassi", html);
+}
+
+window.v28QuizRipassi = v28QuizRipassi;
+window.v29ToggleAnswer = v29ToggleAnswer;

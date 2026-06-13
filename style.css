@@ -69,3 +69,8 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 .smartActions{gap:10px;flex-wrap:wrap}
 #statsActionsView details summary{cursor:pointer;font-weight:700;margin-top:6px}
 #statsActionsView .item{border-left:3px solid rgba(139,92,246,.55)}
+
+.quickAnswerBox.hidden{display:none}
+.quickAnswerBox{margin-top:12px;white-space:pre-wrap}
+.quickQuizCard .itemActions{margin-top:10px}
+.quickAnswerBtn{touch-action:manipulation}
