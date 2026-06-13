@@ -58,3 +58,10 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 .quizOptionBtn:disabled{opacity:.9;cursor:not-allowed}
 .quizCorrect{outline:3px solid #22c55e!important}
 .quizWrong{outline:3px solid #ef4444!important}
+
+.clickableStat{cursor:pointer!important;transition:transform .15s ease, box-shadow .15s ease}
+.clickableStat:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(0,0,0,.24)}
+.clickableStat:active{transform:scale(.99)}
+#statsDetailPanel{margin-top:18px}
+#statsDetailPanel details{margin-top:8px}
+#statsDetailPanel summary{cursor:pointer;font-weight:700}

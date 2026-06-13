@@ -2770,3 +2770,331 @@ function normalizeQuizTextV26(value){
 
 window.answerPdfQuizIndex = answerPdfQuizIndex;
 window.answerPdfQuiz = answerPdfQuiz;
+
+
+/* ===== V27 FIX DEFINITIVO CLICK STATISTICHE HOME + STATISTICHE ===== */
+function v27AllCards(){
+  const list = [];
+  (db.decks || []).forEach(deck=>{
+    (deck.cards || []).forEach(card=>list.push({deck, card}));
+  });
+  return list;
+}
+
+function v27DueCards(){
+  const todayStr = today();
+  return v27AllCards().filter(x => (x.card.due || todayStr) <= todayStr);
+}
+
+function v27EnsureStatsPanel(){
+  let panel = document.querySelector("#statsDetailPanel");
+  if(panel) return panel;
+
+  const statsView = document.querySelector("#stats");
+  if(!statsView) return null;
+
+  panel = document.createElement("div");
+  panel.className = "panel";
+  panel.id = "statsDetailPanel";
+  panel.innerHTML = `
+    <h3 id="statsDetailTitle">Dettaglio</h3>
+    <div id="statsDetailContent" class="list"></div>
+  `;
+  statsView.appendChild(panel);
+  return panel;
+}
+
+function v27OpenStatsPanel(title, bodyHtml){
+  showView("stats");
+  setTimeout(()=>{
+    const panel = v27EnsureStatsPanel();
+    if(!panel) return;
+    panel.querySelector("#statsDetailTitle").textContent = title;
+    panel.querySelector("#statsDetailContent").innerHTML = bodyHtml;
+    panel.scrollIntoView({behavior:"smooth", block:"start"});
+  },120);
+}
+
+function v27ShowAllCards(){
+  const all = v27AllCards();
+  if(!all.length){
+    v27OpenStatsPanel("Tutte le flashcard", '<div class="item">Nessuna flashcard salvata.</div>');
+    return;
+  }
+
+  const grouped = {};
+  all.forEach(({deck,card})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    if(!grouped[key]) grouped[key] = [];
+    grouped[key].push({deck,card});
+  });
+
+  let html = "";
+  Object.entries(grouped).forEach(([subject, items])=>{
+    html += `
+      <div class="item">
+        <b>${esc(subject)}</b>
+        <div class="small">${items.length} flashcard</div>
+        <div class="itemActions">
+          <button type="button" onclick="v27StartStudySubject('${escAttr(subject)}')">Studia materia</button>
+          <button type="button" class="secondary" onclick="v27PreviewSubject('${escAttr(subject)}')">Vedi schede</button>
+        </div>
+      </div>
+    `;
+  });
+
+  v27OpenStatsPanel("Tutte le flashcard", html);
+}
+
+function v27ShowDueCards(){
+  const due = v27DueCards();
+  if(!due.length){
+    v27OpenStatsPanel("Ripassi", '<div class="item">Nessuna scheda da ripassare oggi.</div>');
+    return;
+  }
+
+  const grouped = {};
+  due.forEach(({deck,card})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    if(!grouped[key]) grouped[key] = [];
+    grouped[key].push({deck,card});
+  });
+
+  let html = `
+    <div class="item">
+      <b>${due.length} schede da ripassare</b>
+      <div class="small">Puoi ripassarle tutte oppure scegliere una materia.</div>
+      <div class="itemActions">
+        <button type="button" onclick="v27StartDueReview('all')">Ripassa tutte</button>
+        <button type="button" class="secondary" onclick="v27QuickQuizDue()">Quiz rapido</button>
+      </div>
+    </div>
+  `;
+
+  Object.entries(grouped).forEach(([subject,items])=>{
+    html += `
+      <div class="item">
+        <b>${esc(subject)}</b>
+        <div class="small">${items.length} da ripassare</div>
+        <div class="itemActions">
+          <button type="button" onclick="v27StartDueReview('${escAttr(subject)}')">Ripassa questa materia</button>
+          <button type="button" class="secondary" onclick="v27PreviewDue('${escAttr(subject)}')">Vedi schede</button>
+        </div>
+      </div>
+    `;
+  });
+
+  v27OpenStatsPanel("Ripassi", html);
+}
+
+function v27PreviewDue(subject){
+  const cards = v27DueCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return subject === "all" || key === subject;
+  });
+
+  let html = `
+    <div class="item">
+      <b>${cards.length} schede selezionate</b>
+      <div class="itemActions">
+        <button type="button" onclick="v27StartDueReview('${escAttr(subject)}')">Avvia ripasso</button>
+      </div>
+    </div>
+  `;
+
+  cards.slice(0,80).forEach(({deck,card},i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <div class="small">${esc(deck.name || "")} • scadenza ${esc(card.due || today())}</div>
+      </div>
+    `;
+  });
+
+  v27OpenStatsPanel("Schede da ripassare", html);
+}
+
+function v27PreviewSubject(subject){
+  const cards = v27AllCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return key === subject;
+  });
+
+  let html = `
+    <div class="item">
+      <b>${cards.length} schede in ${esc(subject)}</b>
+      <div class="itemActions">
+        <button type="button" onclick="v27StartStudySubject('${escAttr(subject)}')">Studia materia</button>
+      </div>
+    </div>
+  `;
+
+  cards.slice(0,80).forEach(({deck,card},i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <div class="small">${esc(deck.name || "")}</div>
+      </div>
+    `;
+  });
+
+  v27OpenStatsPanel("Flashcard materia", html);
+}
+
+function v27StartDueReview(subject){
+  const selected = v27DueCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return subject === "all" || key === subject;
+  });
+
+  if(!selected.length) return alert("Nessuna scheda da ripassare.");
+
+  currentStudy = {
+    deck: {
+      id: "v27_due_" + Date.now(),
+      name: subject === "all" ? "Ripassi di oggi" : "Ripassi - " + subject,
+      topic: subject === "all" ? "Ripassi" : subject,
+      cards: selected.map(x=>x.card)
+    },
+    queue: selected.map(x=>x.card).sort(()=>Math.random()-0.5),
+    card: null
+  };
+
+  showView("study");
+  nextStudy();
+}
+
+function v27StartStudySubject(subject){
+  const selected = v27AllCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return key === subject;
+  });
+
+  if(!selected.length) return alert("Nessuna flashcard trovata.");
+
+  currentStudy = {
+    deck: {
+      id: "v27_subject_" + Date.now(),
+      name: "Studio - " + subject,
+      topic: subject,
+      cards: selected.map(x=>x.card)
+    },
+    queue: selected.map(x=>x.card).sort(()=>Math.random()-0.5),
+    card: null
+  };
+
+  showView("study");
+  nextStudy();
+}
+
+function v27QuickQuizDue(){
+  const due = v27DueCards();
+  if(!due.length) return alert("Nessuna scheda da ripassare.");
+
+  let html = '<div class="item"><b>Quiz rapido dai ripassi</b><div class="small">Apri la risposta dopo aver provato mentalmente.</div></div>';
+  due.slice(0,20).forEach(({card},i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <details>
+          <summary>Mostra risposta</summary>
+          <div class="small">${esc(card.a || "")}</div>
+        </details>
+      </div>
+    `;
+  });
+
+  v27OpenStatsPanel("Quiz rapido dai ripassi", html);
+}
+
+function v27ShowXp(){
+  const xp = Number(db.xp || 0);
+  const level = Math.floor(xp / 100) + 1;
+  const perc = xp % 100;
+  v27OpenStatsPanel("XP", `
+    <div class="item">
+      <b>${xp} XP</b>
+      <div class="small">Livello ${level}</div>
+      <div class="small">Mancano ${100-perc} XP al prossimo livello</div>
+      <div class="progressBar"><span style="width:${perc}%"></span></div>
+    </div>
+  `);
+}
+
+function v27ShowLevel(){
+  const xp = Number(db.xp || 0);
+  const level = Math.floor(xp / 100) + 1;
+  let title = "Studente";
+  if(level >= 5) title = "Assistente";
+  if(level >= 10) title = "Ricercatore";
+  if(level >= 15) title = "Laureando";
+  if(level >= 20) title = "Esperto CTF";
+  v27OpenStatsPanel("Livello", `
+    <div class="item">
+      <b>Livello ${level}</b>
+      <div class="small">Titolo: ${title}</div>
+      <div class="small">Studia, ripassa e completa quiz per aumentare il livello.</div>
+    </div>
+  `);
+}
+
+function v27AttachStatsClicks(){
+  const labels = [
+    {names:["mazzi","schede totali","flashcard"], fn:v27ShowAllCards},
+    {names:["da ripassare","ripassi"], fn:v27ShowDueCards},
+    {names:["xp"], fn:v27ShowXp},
+    {names:["livello"], fn:v27ShowLevel}
+  ];
+
+  // Home + Statistiche: cerca card/riquadri che contengono queste etichette.
+  const possibleCards = [...document.querySelectorAll(".stat, .statCard, .card, .panel div, #home .panel, #stats .panel")];
+
+  possibleCards.forEach(card=>{
+    if(card.dataset.v27StatsReady) return;
+    const text = (card.textContent || "").toLowerCase();
+    const match = labels.find(x => x.names.some(n => text.includes(n)));
+    if(!match) return;
+
+    // Evita di agganciare pannelli troppo grandi che contengono tutto.
+    const rect = card.getBoundingClientRect();
+    if(rect.width > window.innerWidth * 0.95 && text.length > 200) return;
+
+    card.dataset.v27StatsReady = "1";
+    card.classList.add("clickableStat");
+    card.addEventListener("click", (e)=>{
+      if(e.target.closest("button,input,textarea,select,a")) return;
+      match.fn();
+    });
+  });
+}
+
+const oldRefreshV27 = refresh;
+refresh = function(){
+  oldRefreshV27();
+  setTimeout(v27AttachStatsClicks, 150);
+};
+
+document.addEventListener("click", e=>{
+  // Fallback: se clicca direttamente su un testo/numero dentro le statistiche.
+  const t = (e.target.textContent || "").toLowerCase();
+  if(!t) return;
+  const inStats = e.target.closest("#stats") || e.target.closest("#home");
+  if(!inStats) return;
+
+  if(t.includes("da ripassare") || t.includes("ripassi")) v27ShowDueCards();
+  else if(t.includes("mazzi") || t.includes("schede totali") || t.includes("flashcard")) v27ShowAllCards();
+  else if(t.includes("xp")) v27ShowXp();
+  else if(t.includes("livello")) v27ShowLevel();
+}, false);
+
+window.v27ShowAllCards = v27ShowAllCards;
+window.v27ShowDueCards = v27ShowDueCards;
+window.v27PreviewDue = v27PreviewDue;
+window.v27PreviewSubject = v27PreviewSubject;
+window.v27StartDueReview = v27StartDueReview;
+window.v27StartStudySubject = v27StartStudySubject;
+window.v27QuickQuizDue = v27QuickQuizDue;
+window.v27ShowXp = v27ShowXp;
+window.v27ShowLevel = v27ShowLevel;
+
+setTimeout(v27AttachStatsClicks, 1000);
