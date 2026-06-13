@@ -1354,3 +1354,173 @@ document.querySelector("#testVoiceBtn")?.addEventListener("click",(e)=>{
 
 setTimeout(()=>{ loadVoiceSettings(); addVoiceButtons(); }, 500);
 document.addEventListener("click",()=>{ setTimeout(addVoiceButtons, 300); });
+
+
+/* ===== V17 VOCE GLOBALE SU TUTTI I TASTI ASCOLTA ===== */
+function getGlobalVoiceSettings(){
+  db.settings = db.settings || {};
+  return {
+    provider: db.settings.voiceProvider || "browser",
+    geminiVoiceName: db.settings.geminiVoiceName || "Kore",
+    elevenLabsKey: db.settings.elevenLabsKey || "",
+    elevenLabsVoiceId: db.settings.elevenLabsVoiceId || ""
+  };
+}
+
+/* Questa funzione sostituisce la lettura precedente e usa SEMPRE la voce scelta in Impostazioni */
+async function speakTutorText(text){
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if(!clean){
+    alert("Non c'è testo da leggere.");
+    return;
+  }
+
+  const settings = getGlobalVoiceSettings();
+  const provider = settings.provider;
+
+  if(provider === "gemini"){
+    const url = getWorkerUrl ? getWorkerUrl() : ((db.settings.workerUrl || "").trim().replace(/\/$/,""));
+    if(!url){
+      alert("Per usare Gemini Voice serve l'URL del Worker nelle Impostazioni.");
+      return;
+    }
+
+    try{
+      const status = document.querySelector("#voiceStatus");
+      if(status) status.textContent = "Genero voce Gemini...";
+
+      const r = await fetch(url + "/tts-gemini", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          text: clean,
+          voiceName: settings.geminiVoiceName
+        })
+      });
+
+      if(!r.ok){
+        const err = await r.json().catch(()=>({error:"Errore voce Gemini"}));
+        throw new Error(err.error || "Errore voce Gemini");
+      }
+
+      const blob = await r.blob();
+      const audioUrl = URL.createObjectURL(blob);
+
+      if(currentAiAudio){
+        currentAiAudio.pause();
+        currentAiAudio = null;
+      }
+
+      speechSynthesis.cancel();
+      currentAiAudio = new Audio(audioUrl);
+      currentAiAudio.play();
+
+      if(status) status.textContent = "Voce Gemini in riproduzione.";
+      return;
+    }catch(e){
+      alert("Errore voce Gemini: " + e.message + "\nUso la voce gratuita del dispositivo.");
+    }
+  }
+
+  if(provider === "elevenlabs"){
+    const url = getWorkerUrl ? getWorkerUrl() : ((db.settings.workerUrl || "").trim().replace(/\/$/,""));
+    if(!url){
+      alert("Per usare ElevenLabs serve l'URL del Worker nelle Impostazioni.");
+      return;
+    }
+
+    try{
+      const status = document.querySelector("#voiceStatus");
+      if(status) status.textContent = "Genero voce ElevenLabs...";
+
+      const r = await fetch(url + "/tts", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          text: clean,
+          apiKey: settings.elevenLabsKey,
+          voiceId: settings.elevenLabsVoiceId
+        })
+      });
+
+      if(!r.ok){
+        const err = await r.json().catch(()=>({error:"Errore voce ElevenLabs"}));
+        throw new Error(err.error || "Errore voce ElevenLabs");
+      }
+
+      const blob = await r.blob();
+      const audioUrl = URL.createObjectURL(blob);
+
+      if(currentAiAudio){
+        currentAiAudio.pause();
+        currentAiAudio = null;
+      }
+
+      speechSynthesis.cancel();
+      currentAiAudio = new Audio(audioUrl);
+      currentAiAudio.play();
+
+      if(status) status.textContent = "Voce ElevenLabs in riproduzione.";
+      return;
+    }catch(e){
+      alert("Errore voce ElevenLabs: " + e.message + "\nUso la voce gratuita del dispositivo.");
+    }
+  }
+
+  /* Fallback: voce gratuita del dispositivo */
+  stopTutorVoice();
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = "it-IT";
+  u.rate = 0.95;
+  u.pitch = 1;
+  speechSynthesis.speak(u);
+}
+
+/* Aggiorna anche il pulsante ascolta della modalità studio */
+const oldSpeakBtn = document.querySelector("#speakBtn");
+if(oldSpeakBtn){
+  oldSpeakBtn.onclick = () => {
+    const shown = document.querySelector("#flipCard")?.classList.contains("show");
+    const txt = shown
+      ? document.querySelector("#studyAnswer")?.textContent
+      : document.querySelector("#studyQuestion")?.textContent;
+    speakTutorText(txt || "");
+  };
+}
+
+/* Ricrea i pulsanti ascolta usando sempre la voce globale */
+function addVoiceButtons(){
+  const targets = [
+    ["#tutorAnswer", "Ascolta Tutor"],
+    ["#oralResult", "Ascolta Valutazione"],
+    ["#drugResult", "Ascolta Farmaco"],
+    ["#aiExtraBox", "Ascolta Testo AI"],
+    ["#quizFeedback", "Ascolta Quiz"],
+    ["#fileStatus", "Ascolta Avviso"]
+  ];
+
+  targets.forEach(([selector,label])=>{
+    const box = document.querySelector(selector);
+    if(!box || box.dataset.voiceReadyGlobal) return;
+
+    const row = document.createElement("div");
+    row.className = "actions voiceActions";
+    row.innerHTML = `
+      <button type="button" class="secondary">🔊 ${label}</button>
+      <button type="button" class="secondary">⏹️ Stop</button>
+    `;
+
+    const buttons = row.querySelectorAll("button");
+    buttons[0].addEventListener("click",()=>speakTutorText(box.textContent));
+    buttons[1].addEventListener("click",()=>stopTutorVoice());
+
+    box.insertAdjacentElement("afterend", row);
+    box.dataset.voiceReadyGlobal = "1";
+  });
+}
+
+document.addEventListener("click",()=>{
+  setTimeout(addVoiceButtons, 250);
+});
+
+setTimeout(addVoiceButtons, 800);
