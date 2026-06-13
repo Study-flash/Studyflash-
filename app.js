@@ -1195,3 +1195,126 @@ function friendlyAiError(message){
   }
   return m;
 }
+
+
+/* ===== V15 VOCE TUTOR AI ===== */
+let currentAiAudio = null;
+
+function loadVoiceSettings(){
+  db.settings = db.settings || {};
+  const provider = document.querySelector("#voiceProvider");
+  const key = document.querySelector("#elevenLabsKey");
+  const voiceId = document.querySelector("#elevenLabsVoiceId");
+  if(provider) provider.value = db.settings.voiceProvider || "browser";
+  if(key) key.value = db.settings.elevenLabsKey || "";
+  if(voiceId) voiceId.value = db.settings.elevenLabsVoiceId || "";
+}
+
+function saveVoiceSettings(){
+  db.settings = db.settings || {};
+  db.settings.voiceProvider = document.querySelector("#voiceProvider")?.value || "browser";
+  db.settings.elevenLabsKey = document.querySelector("#elevenLabsKey")?.value.trim() || "";
+  db.settings.elevenLabsVoiceId = document.querySelector("#elevenLabsVoiceId")?.value.trim() || "";
+  save();
+  const s = document.querySelector("#voiceStatus");
+  if(s) s.textContent = "Impostazioni voce salvate.";
+}
+
+async function speakTutorText(text){
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if(!clean){ alert("Non c'è testo da leggere."); return; }
+
+  db.settings = db.settings || {};
+  const provider = db.settings.voiceProvider || "browser";
+
+  if(provider === "elevenlabs"){
+    const url = getWorkerUrl ? getWorkerUrl() : ((db.settings.workerUrl || "").trim().replace(/\/$/,""));
+    if(!url){ alert("Per usare ElevenLabs serve l'URL del Worker nelle Impostazioni."); return; }
+
+    try{
+      const status = document.querySelector("#voiceStatus");
+      if(status) status.textContent = "Genero voce AI...";
+
+      const r = await fetch(url + "/tts", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          text: clean,
+          apiKey: db.settings.elevenLabsKey || "",
+          voiceId: db.settings.elevenLabsVoiceId || ""
+        })
+      });
+
+      if(!r.ok){
+        const err = await r.json().catch(()=>({error:"Errore voce AI"}));
+        throw new Error(err.error || "Errore voce AI");
+      }
+
+      const blob = await r.blob();
+      const audioUrl = URL.createObjectURL(blob);
+
+      if(currentAiAudio){ currentAiAudio.pause(); currentAiAudio = null; }
+      currentAiAudio = new Audio(audioUrl);
+      currentAiAudio.play();
+
+      if(status) status.textContent = "Voce AI in riproduzione.";
+      return;
+    }catch(e){
+      alert("Errore voce AI: " + e.message + "\nUso la voce gratuita del dispositivo.");
+    }
+  }
+
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = "it-IT";
+  u.rate = 0.95;
+  u.pitch = 1;
+  speechSynthesis.speak(u);
+}
+
+function stopTutorVoice(){
+  speechSynthesis.cancel();
+  if(currentAiAudio){ currentAiAudio.pause(); currentAiAudio = null; }
+}
+
+function addVoiceButtons(){
+  const targets = [
+    ["#tutorAnswer", "Ascolta Tutor"],
+    ["#oralResult", "Ascolta Valutazione"],
+    ["#drugResult", "Ascolta Farmaco"],
+    ["#aiExtraBox", "Ascolta Testo AI"]
+  ];
+
+  targets.forEach(([selector,label])=>{
+    const box = document.querySelector(selector);
+    if(!box || box.dataset.voiceReady) return;
+
+    const row = document.createElement("div");
+    row.className = "actions voiceActions";
+    row.innerHTML = `
+      <button type="button" class="secondary">🔊 ${label}</button>
+      <button type="button" class="secondary">⏹️ Stop</button>
+    `;
+
+    const buttons = row.querySelectorAll("button");
+    buttons[0].addEventListener("click",()=>speakTutorText(box.textContent));
+    buttons[1].addEventListener("click",()=>stopTutorVoice());
+
+    box.insertAdjacentElement("afterend", row);
+    box.dataset.voiceReady = "1";
+  });
+}
+
+document.querySelector("#saveVoiceSettingsBtn")?.addEventListener("click",(e)=>{
+  e.preventDefault();
+  saveVoiceSettings();
+});
+
+document.querySelector("#testVoiceBtn")?.addEventListener("click",(e)=>{
+  e.preventDefault();
+  saveVoiceSettings();
+  speakTutorText("Ciao, sono il tutor vocale di StudyFlash AI CTF Pro. Posso leggere spiegazioni, risposte e valutazioni orali.");
+});
+
+setTimeout(()=>{ loadVoiceSettings(); addVoiceButtons(); }, 500);
+document.addEventListener("click",()=>{ setTimeout(addVoiceButtons, 300); });

@@ -262,6 +262,25 @@
         </div>
 
         <div class="panel">
+          <h3>Voce Tutor AI</h3>
+          <p class="muted">Puoi usare la voce gratuita del dispositivo oppure una voce AI ElevenLabs. Per sicurezza è meglio inserire la chiave come secret nel Worker, ma puoi salvarla anche localmente solo sul dispositivo.</p>
+          <label>Tipo voce</label>
+          <select id="voiceProvider">
+            <option value="browser">Voce dispositivo gratuita</option>
+            <option value="elevenlabs">Voce AI ElevenLabs</option>
+          </select>
+          <label>ElevenLabs API Key locale opzionale</label>
+          <input id="elevenLabsKey" type="password" placeholder="sk_... opzionale">
+          <label>ElevenLabs Voice ID</label>
+          <input id="elevenLabsVoiceId" placeholder="Voice ID ElevenLabs">
+          <div class="actions">
+            <button id="saveVoiceSettingsBtn">Salva voce</button>
+            <button id="testVoiceBtn" class="secondary">Prova voce</button>
+          </div>
+          <div id="voiceStatus" class="muted"></div>
+        </div>
+
+        <div class="panel">
           <h3>Backup</h3>
           <button id="exportBtn">Esporta dati</button>
           <input id="importInput" type="file" accept="application/json">

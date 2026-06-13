@@ -34,3 +34,6 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 
 .aiBox{line-height:1.55;font-size:15.5px}
 .aiBox::first-line{font-weight:700}
+
+.voiceActions{margin-top:10px}
+.voiceActions button{font-size:14px;padding:10px 12px}
