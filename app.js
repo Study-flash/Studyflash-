@@ -1604,9 +1604,29 @@ async function uploadDocumentToR2(){
     const data = await r.json();
     if(!r.ok || !data.ok) throw new Error(data.error || "Errore caricamento R2");
 
-    docSetStatus(`Documento caricato in R2.\nTesto estratto: ${textContent.length} caratteri\nDimensione file: ${Math.round((data.size||0)/1024)} KB`);
+    docSetStatus(`Documento caricato in R2.\nTesto estratto: ${textContent.length} caratteri\nDimensione file: ${Math.round((data.size||0)/1024)} KB\n\nControllo coerenza materia in corso...`);
     document.querySelector("#docTitle").value = "";
     document.querySelector("#docFile").value = "";
+
+    try{
+      const check = await checkDocumentSubjectAuto(data.id);
+      if(check){
+        const msg = [
+          `Documento caricato in R2.`,
+          `Testo estratto: ${textContent.length} caratteri`,
+          `Dimensione file: ${Math.round((data.size||0)/1024)} KB`,
+          ``,
+          `Materia scelta: ${subject || "-"}`,
+          `Materia rilevata: ${check.detected_subject || "-"}`,
+          `Materia suggerita: ${check.suggested_subject || "-"}`,
+          check.warning ? `⚠️ ${check.warning}` : `✅ La materia sembra coerente.`
+        ].join("\n");
+        docSetStatus(msg);
+      }
+    }catch(e){
+      docSetStatus(`Documento caricato in R2.\nTesto estratto: ${textContent.length} caratteri\nDimensione file: ${Math.round((data.size||0)/1024)} KB\n\nAvviso: controllo materia non riuscito: ${e.message}`);
+    }
+
     await loadDocuments();
   }catch(e){
     docSetStatus("Errore caricamento: " + e.message);
@@ -1866,3 +1886,42 @@ document.querySelector("#pdfOralBtn")?.addEventListener("click", e=>{e.preventDe
 document.querySelector("#pdfMatterCheckBtn")?.addEventListener("click", e=>{e.preventDefault(); checkPdfSubject();});
 
 window.openPdfChat = openPdfChat;
+
+
+/* ===== V21 CONTROLLO AUTOMATICO MATERIA DOPO UPLOAD ===== */
+async function checkDocumentSubjectAuto(id){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  if(!url || !userId || !id) return null;
+
+  const r = await fetch(url + "/documents/check-subject", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({userId,id})
+  });
+
+  const data = await r.json();
+  if(!r.ok) throw new Error(data.error || "Errore controllo materia");
+  return data;
+}
+
+/* Migliora il pulsante Controlla materia dentro Chat PDF */
+async function checkPdfSubject(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+  out.textContent = "Controllo coerenza materia...";
+  try{
+    const data = await checkDocumentSubjectAuto(currentPdfChatDocId);
+    out.textContent =
+      `Materia scelta: ${currentPdfChatDoc?.subject || "-"}\\n`+
+      `Materia rilevata: ${data.detected_subject || "-"}\\n`+
+      `Corrisponde alla materia scelta: ${data.matches ? "Sì" : "No"}\\n`+
+      `Materia suggerita: ${data.suggested_subject || "-"}\\n\\n`+
+      `${data.warning || "Nessun avviso: la materia sembra coerente."}`;
+  }catch(e){
+    out.textContent = "Errore controllo materia: " + e.message;
+  }
+}
+window.checkPdfSubject = checkPdfSubject;
