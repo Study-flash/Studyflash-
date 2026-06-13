@@ -2480,7 +2480,7 @@ function renderPdfQuizQuestion(){
   `;
 
   options.forEach((opt, i)=>{
-    html += `<button type="button" class="quizOptionBtn" onclick="answerPdfQuiz('${escAttr(opt)}')">${String.fromCharCode(65+i)}) ${esc(opt)}</button>`;
+    html += `<button type="button" class="quizOptionBtn" data-quiz-index="${i}">${String.fromCharCode(65+i)}) ${esc(String(opt || "").replace(/^[A-D]\)\s*/i, ""))}</button>`;
   });
 
   html += `
@@ -2686,3 +2686,87 @@ window.oralQuestionsCurrentPdf = oralQuestionsCurrentPdf;
 window.renderPdfOralQuestion = renderPdfOralQuestion;
 window.evaluatePdfOralAnswer = evaluatePdfOralAnswer;
 window.nextPdfOralQuestion = nextPdfOralQuestion;
+
+
+/* ===== V26 FIX DEFINITIVO QUIZ PDF - EVENT DELEGATION ===== */
+document.addEventListener("click", function(e){
+  const btn = e.target.closest(".quizOptionBtn");
+  if(!btn) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const idx = Number(btn.dataset.quizIndex);
+  if(Number.isNaN(idx)){
+    alert("Errore: indice risposta non valido.");
+    return;
+  }
+
+  answerPdfQuizIndex(idx);
+}, true);
+
+function answerPdfQuizIndex(index){
+  const q = currentPdfQuiz[currentPdfQuizIndex];
+  if(!q) return alert("Domanda non trovata.");
+
+  const options = q.options || [];
+  const selected = options[index] || "";
+  answerPdfQuiz(selected, index);
+}
+
+function answerPdfQuiz(selected, selectedIndex = -1){
+  const q = currentPdfQuiz[currentPdfQuizIndex];
+  const feedback = document.querySelector("#pdfQuizFeedback");
+  if(!q || !feedback) return alert("Feedback quiz non trovato.");
+
+  const selectedClean = normalizeQuizTextV26(selected);
+  const answerClean = normalizeQuizTextV26(q.answer);
+
+  let correct = selectedClean === answerClean;
+
+  const selectedLetter = selectedIndex >= 0 ? String.fromCharCode(65 + selectedIndex).toLowerCase() : "";
+  const rawAnswer = String(q.answer || "").trim();
+  const answerLetter = rawAnswer.charAt(0).toLowerCase();
+
+  if(!correct && selectedLetter && ["a","b","c","d"].includes(answerLetter) && selectedLetter === answerLetter){
+    correct = true;
+  }
+
+  if(!correct && rawAnswer.match(/^[A-D]\)/i) && selectedLetter === answerLetter){
+    correct = true;
+  }
+
+  if(correct) currentPdfQuizScore++;
+
+  feedback.classList.remove("hidden");
+  feedback.textContent =
+    (correct ? "✅ Risposta corretta!" : "❌ Risposta non corretta.") +
+    "\n\nRisposta esatta: " + (q.answer || "-") +
+    "\n\nSpiegazione: " + (q.explanation || "-");
+
+  document.querySelectorAll(".quizOptionBtn").forEach((b, i)=>{
+    b.disabled = true;
+    if(i === selectedIndex) b.classList.add(correct ? "quizCorrect" : "quizWrong");
+  });
+
+  const box = document.querySelector("#pdfInteractiveContent");
+  if(box && !document.querySelector("#pdfQuizNextActions")){
+    box.insertAdjacentHTML("beforeend", `
+      <div class="actions" id="pdfQuizNextActions">
+        <button type="button" onclick="nextPdfQuizQuestion()">Domanda successiva</button>
+        <button type="button" class="secondary" onclick="renderPdfQuizResult()">Termina quiz</button>
+      </div>
+    `);
+  }
+}
+
+function normalizeQuizTextV26(value){
+  return String(value || "")
+    .replace(/^[A-D]\)\s*/i, "")
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+window.answerPdfQuizIndex = answerPdfQuizIndex;
+window.answerPdfQuiz = answerPdfQuiz;

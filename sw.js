@@ -1,5 +1,5 @@
 
-const CACHE="studyflash-ai-v25-fix-quiz-buttons";
+const CACHE="studyflash-ai-v26-fix-quiz-delegation";
 const ASSETS=["./","index.html","style.css","app.js","manifest.webmanifest","icon.svg"];
 self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
 self.addEventListener("fetch",e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));

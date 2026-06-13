@@ -53,3 +53,8 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 .quizOptions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px}
 .quizOptionBtn{text-align:left;white-space:normal}
 #pdfOralFeedback.hidden,#pdfQuizFeedback.hidden{display:none}
+
+.quizOptionBtn{cursor:pointer;touch-action:manipulation}
+.quizOptionBtn:disabled{opacity:.9;cursor:not-allowed}
+.quizCorrect{outline:3px solid #22c55e!important}
+.quizWrong{outline:3px solid #ef4444!important}
