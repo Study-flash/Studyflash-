@@ -42,3 +42,9 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 #docList .item b{font-size:17px}
 
 #pdfChatAnswer{min-height:120px}
+
+#statsDetailPanel.hidden{display:none}
+#statsDetailPanel details{margin-top:8px}
+#statsDetailPanel summary{cursor:pointer;font-weight:700}
+#stats .stat, #stats .statCard{transition:transform .15s ease, box-shadow .15s ease}
+#stats .stat:hover, #stats .statCard:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(0,0,0,.2)}

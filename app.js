@@ -2126,3 +2126,277 @@ async function checkPdfSubject(){
   }
 }
 window.checkPdfSubject = checkPdfSubject;
+
+
+/* ===== V23 DASHBOARD STATISTICHE INTERATTIVA ===== */
+function getAllCardsWithDeck(){
+  const result = [];
+  (db.decks || []).forEach(deck=>{
+    (deck.cards || []).forEach(card=>{
+      result.push({deck, card});
+    });
+  });
+  return result;
+}
+
+function getDueCards(){
+  return getAllCardsWithDeck().filter(x => (x.card.due || today()) <= today());
+}
+
+function openStatsPanel(title, html){
+  const panel = document.querySelector("#statsDetailPanel");
+  const titleEl = document.querySelector("#statsDetailTitle");
+  const content = document.querySelector("#statsDetailContent");
+  if(!panel || !titleEl || !content) return;
+  titleEl.textContent = title;
+  content.innerHTML = html;
+  panel.classList.remove("hidden");
+  panel.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function showAllFlashcardsStats(){
+  const all = getAllCardsWithDeck();
+  if(!all.length){
+    openStatsPanel("Tutte le flashcard", '<div class="item">Nessuna flashcard salvata.</div>');
+    return;
+  }
+
+  const grouped = {};
+  all.forEach(({deck, card})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    grouped[key] = grouped[key] || [];
+    grouped[key].push({deck, card});
+  });
+
+  let html = "";
+  Object.entries(grouped).forEach(([subject, items])=>{
+    html += `<div class="item"><b>${esc(subject)}</b><div class="small">${items.length} flashcard</div>`;
+    html += `<div class="itemActions"><button type="button" onclick="startReviewBySubject('${escAttr(subject)}')">Studia questa materia</button></div></div>`;
+  });
+
+  openStatsPanel("Tutte le flashcard", html);
+}
+
+function showDueReviewStats(){
+  const due = getDueCards();
+  if(!due.length){
+    openStatsPanel("Ripassi di oggi", '<div class="item">Nessuna scheda da ripassare oggi.</div>');
+    return;
+  }
+
+  const grouped = {};
+  due.forEach(({deck, card})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    grouped[key] = grouped[key] || [];
+    grouped[key].push({deck, card});
+  });
+
+  let html = `
+    <div class="item">
+      <b>${due.length} schede da ripassare</b>
+      <div class="small">Seleziona un gruppo oppure avvia tutto il ripasso.</div>
+      <div class="itemActions">
+        <button type="button" onclick="startSelectedReview('all')">Ripassa tutte</button>
+        <button type="button" class="secondary" onclick="startSelectedQuizFromDue()">Quiz dai ripassi</button>
+      </div>
+    </div>
+  `;
+
+  Object.entries(grouped).forEach(([subject, items])=>{
+    html += `
+      <div class="item">
+        <b>${esc(subject)}</b>
+        <div class="small">${items.length} schede da ripassare</div>
+        <div class="itemActions">
+          <button type="button" onclick="startSelectedReview('${escAttr(subject)}')">Ripassa</button>
+          <button type="button" class="secondary" onclick="previewDueCards('${escAttr(subject)}')">Vedi schede</button>
+        </div>
+      </div>
+    `;
+  });
+
+  openStatsPanel("Ripassi di oggi", html);
+}
+
+function previewDueCards(subject){
+  const due = getDueCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return subject === "all" || key === subject;
+  });
+
+  let html = `
+    <div class="item">
+      <b>${due.length} schede selezionate</b>
+      <div class="itemActions">
+        <button type="button" onclick="startSelectedReview('${escAttr(subject)}')">Avvia ripasso</button>
+      </div>
+    </div>
+  `;
+
+  due.slice(0,50).forEach(({deck, card}, i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <div class="small">${esc(deck.name || "")} • scadenza: ${esc(card.due || today())}</div>
+      </div>
+    `;
+  });
+
+  openStatsPanel("Schede da ripassare", html);
+}
+
+function startSelectedReview(subject){
+  const due = getDueCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return subject === "all" || key === subject;
+  });
+
+  if(!due.length) return alert("Nessuna scheda da ripassare.");
+
+  const tempDeck = {
+    id: "temp_due_" + Date.now(),
+    name: subject === "all" ? "Ripassi di oggi" : "Ripassi - " + subject,
+    topic: subject === "all" ? "Ripassi" : subject,
+    cards: due.map(x=>x.card)
+  };
+
+  currentStudy = {
+    deck: tempDeck,
+    queue: [...tempDeck.cards].sort(()=>Math.random()-0.5),
+    card: null
+  };
+
+  showView("study");
+  nextStudy();
+}
+
+function startReviewBySubject(subject){
+  const cards = getAllCardsWithDeck().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return key === subject;
+  });
+
+  if(!cards.length) return alert("Nessuna flashcard per questa materia.");
+
+  const tempDeck = {
+    id: "temp_subject_" + Date.now(),
+    name: "Studio - " + subject,
+    topic: subject,
+    cards: cards.map(x=>x.card)
+  };
+
+  currentStudy = {
+    deck: tempDeck,
+    queue: [...tempDeck.cards].sort(()=>Math.random()-0.5),
+    card: null
+  };
+
+  showView("study");
+  nextStudy();
+}
+
+function startSelectedQuizFromDue(){
+  const due = getDueCards();
+  if(!due.length) return alert("Nessuna scheda da ripassare.");
+  const questions = due.slice(0,20).map(({card})=>({
+    q: card.q,
+    a: card.a
+  }));
+
+  let html = '<div class="item"><b>Quiz rapido dai ripassi</b><div class="small">Rispondi mentalmente e poi controlla la risposta.</div></div>';
+  questions.forEach((x,i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(x.q || "")}</b>
+        <details><summary>Mostra risposta</summary><div class="small">${esc(x.a || "")}</div></details>
+      </div>
+    `;
+  });
+  openStatsPanel("Quiz dai ripassi", html);
+}
+
+function showXpStats(){
+  const xp = db.xp || 0;
+  const level = Math.floor(xp / 100) + 1;
+  const next = level * 100;
+  const remaining = Math.max(0, next - xp);
+  openStatsPanel("XP e livello", `
+    <div class="item">
+      <b>${xp} XP</b>
+      <div class="small">Livello attuale: ${level}</div>
+      <div class="small">XP mancanti al prossimo livello: ${remaining}</div>
+      <div class="progressBar"><span style="width:${Math.min(100, xp % 100)}%"></span></div>
+    </div>
+    <div class="item">
+      <b>Come aumentare XP</b>
+      <div class="small">+4 risposta difficile, +7 risposta media, +10 risposta facile.</div>
+    </div>
+  `);
+}
+
+function showLevelStats(){
+  const xp = db.xp || 0;
+  const level = Math.floor(xp / 100) + 1;
+  let title = "Studente";
+  if(level >= 5) title = "Assistente";
+  if(level >= 10) title = "Ricercatore";
+  if(level >= 15) title = "Laureando";
+  if(level >= 20) title = "Esperto CTF";
+
+  openStatsPanel("Livello", `
+    <div class="item">
+      <b>Livello ${level}</b>
+      <div class="small">Titolo: ${title}</div>
+      <div class="small">Continua con ripassi, quiz e simulazioni orali per salire di livello.</div>
+    </div>
+  `);
+}
+
+function makeStatsCardsInteractive(){
+  const statsView = document.querySelector("#stats");
+  if(!statsView) return;
+
+  const cards = [...statsView.querySelectorAll(".stat, .statCard, .card, .panel > div > div")];
+  const labels = [...statsView.querySelectorAll("*")].filter(el => {
+    const t = (el.textContent || "").toLowerCase();
+    return t.includes("schede totali") || t.includes("ripassi") || t.includes("xp") || t.includes("livello");
+  });
+
+  // Metodo robusto: trova i contenitori più vicini ai testi
+  labels.forEach(label=>{
+    const t = (label.textContent || "").toLowerCase();
+    const box = label.closest(".stat") || label.closest(".statCard") || label.closest(".item") || label.parentElement;
+    if(!box || box.dataset.statsReady) return;
+    box.dataset.statsReady = "1";
+    box.style.cursor = "pointer";
+    box.title = "Clicca per aprire il dettaglio";
+
+    if(t.includes("schede totali")){
+      box.addEventListener("click", showAllFlashcardsStats);
+    }else if(t.includes("ripassi")){
+      box.addEventListener("click", showDueReviewStats);
+    }else if(t.includes("xp")){
+      box.addEventListener("click", showXpStats);
+    }else if(t.includes("livello")){
+      box.addEventListener("click", showLevelStats);
+    }
+  });
+}
+
+const oldRenderStatsV23 = renderStats;
+renderStats = function(){
+  oldRenderStatsV23();
+  setTimeout(makeStatsCardsInteractive, 100);
+};
+
+window.showAllFlashcardsStats = showAllFlashcardsStats;
+window.showDueReviewStats = showDueReviewStats;
+window.previewDueCards = previewDueCards;
+window.startSelectedReview = startSelectedReview;
+window.startReviewBySubject = startReviewBySubject;
+window.startSelectedQuizFromDue = startSelectedQuizFromDue;
+window.showXpStats = showXpStats;
+window.showLevelStats = showLevelStats;
+
+setTimeout(makeStatsCardsInteractive, 700);
+refresh();
