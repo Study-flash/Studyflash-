@@ -1646,7 +1646,8 @@ async function loadDocuments(){
           <div class="small">${esc(d.subject || "Senza materia")} • ${esc(d.file_name || "")} • ${Math.round((d.size||0)/1024)} KB</div>
           <div class="small">${esc((d.preview || "").slice(0,220))}</div>
           <div class="itemActions">
-            <button type="button" onclick="generateFromCloudDoc('${escAttr(d.id)}')">Genera flashcard</button>
+            <button type="button" onclick="openPdfChat('${escAttr(d.id)}')">Chat PDF</button>
+            <button type="button" class="secondary" onclick="generateFromCloudDoc('${escAttr(d.id)}')">Genera flashcard</button>
             <button type="button" class="secondary" onclick="downloadCloudDoc('${escAttr(d.id)}')">Scarica</button>
             <button type="button" class="secondary" onclick="deleteCloudDoc('${escAttr(d.id)}')">Elimina</button>
           </div>
@@ -1748,3 +1749,120 @@ refresh = function(){
 };
 
 setTimeout(()=>{ fillDocumentSubjectSelect(); loadDocuments(); }, 700);
+
+
+/* ===== V20 CHAT PDF / QUIZ PDF / ORALE PDF ===== */
+let currentPdfChatDocId = null;
+let currentPdfChatDoc = null;
+
+async function openPdfChat(id){
+  try{
+    currentPdfChatDocId = id;
+    currentPdfChatDoc = await getCloudDocContent(id);
+    showView("pdfChat");
+    const info = document.querySelector("#pdfChatDocInfo");
+    if(info){
+      info.innerHTML = `<b>${esc(currentPdfChatDoc.title || currentPdfChatDoc.file_name)}</b><br>${esc(currentPdfChatDoc.subject || "Senza materia")} • ${esc(currentPdfChatDoc.file_name || "")}`;
+    }
+    document.querySelector("#pdfChatAnswer").textContent = "Documento pronto. Scrivi una domanda oppure genera quiz/domande orali.";
+  }catch(e){
+    alert("Errore apertura Chat PDF: " + e.message);
+  }
+}
+
+async function askCurrentPdf(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const q = document.querySelector("#pdfChatQuestion")?.value.trim();
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento dalla Libreria Cloud.");
+  if(!q) return alert("Scrivi una domanda sul PDF.");
+  out.textContent = "Sto leggendo il PDF e preparo la risposta...";
+  try{
+    const r = await fetch(url + "/documents/ask", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id:currentPdfChatDocId,question:q})
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore Chat PDF");
+    out.textContent = formatAiText ? formatAiText(data.result) : data.result;
+  }catch(e){
+    out.textContent = "Errore Chat PDF: " + e.message;
+  }
+}
+
+async function quizCurrentPdf(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+  out.textContent = "Genero quiz dal PDF...";
+  try{
+    const r = await fetch(url + "/documents/quiz", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id:currentPdfChatDocId,count:10})
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore quiz PDF");
+    const quiz = data.quiz || [];
+    out.textContent = quiz.map((q,i)=>
+      `${i+1}. ${q.question}\nA) ${q.options?.[0]||""}\nB) ${q.options?.[1]||""}\nC) ${q.options?.[2]||""}\nD) ${q.options?.[3]||""}\nRisposta: ${q.answer}\nSpiegazione: ${q.explanation||""}`
+    ).join("\n\n");
+  }catch(e){
+    out.textContent = "Errore quiz PDF: " + e.message;
+  }
+}
+
+async function oralQuestionsCurrentPdf(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+  out.textContent = "Genero domande orali dal PDF...";
+  try{
+    const r = await fetch(url + "/documents/oral-questions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id:currentPdfChatDocId,count:6})
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore orale PDF");
+    const qs = data.questions || [];
+    out.textContent = qs.map((q,i)=>`${i+1}. ${q}`).join("\n\n");
+  }catch(e){
+    out.textContent = "Errore domande orali PDF: " + e.message;
+  }
+}
+
+async function checkPdfSubject(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+  out.textContent = "Controllo coerenza materia...";
+  try{
+    const r = await fetch(url + "/documents/check-subject", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id:currentPdfChatDocId})
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore controllo materia");
+    out.textContent =
+      `Materia rilevata: ${data.detected_subject || "-"}\n`+
+      `Corrisponde alla materia scelta: ${data.matches ? "Sì" : "No"}\n`+
+      `Materia suggerita: ${data.suggested_subject || "-"}\n\n`+
+      `${data.warning || "Nessun avviso."}`;
+  }catch(e){
+    out.textContent = "Errore controllo materia: " + e.message;
+  }
+}
+
+document.querySelector("#askPdfBtn")?.addEventListener("click", e=>{e.preventDefault(); askCurrentPdf();});
+document.querySelector("#pdfQuizBtn")?.addEventListener("click", e=>{e.preventDefault(); quizCurrentPdf();});
+document.querySelector("#pdfOralBtn")?.addEventListener("click", e=>{e.preventDefault(); oralQuestionsCurrentPdf();});
+document.querySelector("#pdfMatterCheckBtn")?.addEventListener("click", e=>{e.preventDefault(); checkPdfSubject();});
+
+window.openPdfChat = openPdfChat;

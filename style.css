@@ -40,3 +40,5 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 
 #docStatus{min-height:44px}
 #docList .item b{font-size:17px}
+
+#pdfChatAnswer{min-height:120px}
