@@ -2400,3 +2400,289 @@ window.showLevelStats = showLevelStats;
 
 setTimeout(makeStatsCardsInteractive, 700);
 refresh();
+
+
+/* ===== V24 QUIZ PDF E ORALE PDF INTERATTIVI ===== */
+let currentPdfQuiz = [];
+let currentPdfQuizIndex = 0;
+let currentPdfQuizScore = 0;
+let currentPdfOralQuestions = [];
+let currentPdfOralIndex = 0;
+
+function showPdfInteractive(title){
+  const panel = document.querySelector("#pdfInteractivePanel");
+  const titleEl = document.querySelector("#pdfInteractiveTitle");
+  if(!panel || !titleEl) return;
+  titleEl.textContent = title;
+  panel.classList.remove("hidden");
+  panel.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function setPdfInteractiveContent(html){
+  const box = document.querySelector("#pdfInteractiveContent");
+  if(box) box.innerHTML = html;
+}
+
+async function quizCurrentPdf(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+
+  out.textContent = "Genero quiz interattivo dal PDF...";
+  showPdfInteractive("Quiz interattivo dal PDF");
+  setPdfInteractiveContent('<div class="item">Generazione quiz in corso...</div>');
+
+  try{
+    const r = await fetch(url + "/documents/quiz", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id:currentPdfChatDocId,count:10})
+    });
+
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore quiz PDF");
+
+    currentPdfQuiz = data.quiz || [];
+    currentPdfQuizIndex = 0;
+    currentPdfQuizScore = 0;
+
+    if(!currentPdfQuiz.length){
+      setPdfInteractiveContent('<div class="item">Nessuna domanda generata.</div>');
+      return;
+    }
+
+    out.textContent = "Quiz generato. Rispondi alle domande nel pannello interattivo.";
+    renderPdfQuizQuestion();
+
+  }catch(e){
+    out.textContent = "Errore quiz PDF: " + e.message;
+    setPdfInteractiveContent('<div class="item">Errore quiz PDF: '+esc(e.message)+'</div>');
+  }
+}
+
+function renderPdfQuizQuestion(){
+  const q = currentPdfQuiz[currentPdfQuizIndex];
+  if(!q){
+    renderPdfQuizResult();
+    return;
+  }
+
+  const options = q.options || [];
+  let html = `
+    <div class="item">
+      <b>Domanda ${currentPdfQuizIndex + 1} di ${currentPdfQuiz.length}</b>
+      <div class="small">Punteggio: ${currentPdfQuizScore}/${currentPdfQuiz.length}</div>
+    </div>
+    <div class="item">
+      <b>${esc(q.question || "")}</b>
+      <div class="quizOptions">
+  `;
+
+  options.forEach((opt, i)=>{
+    html += `<button type="button" class="quizOptionBtn" onclick="answerPdfQuiz('${escAttr(opt)}')">${String.fromCharCode(65+i)}) ${esc(opt)}</button>`;
+  });
+
+  html += `
+      </div>
+      <div id="pdfQuizFeedback" class="aiBox hidden"></div>
+    </div>
+  `;
+
+  setPdfInteractiveContent(html);
+}
+
+function answerPdfQuiz(selected){
+  const q = currentPdfQuiz[currentPdfQuizIndex];
+  const feedback = document.querySelector("#pdfQuizFeedback");
+  if(!q || !feedback) return;
+
+  const correct = String(selected).trim().toLowerCase() === String(q.answer || "").trim().toLowerCase();
+
+  if(correct) currentPdfQuizScore++;
+
+  feedback.classList.remove("hidden");
+  feedback.textContent =
+    (correct ? "✅ Risposta corretta!" : "❌ Risposta non corretta.") +
+    "\\n\\nRisposta esatta: " + (q.answer || "-") +
+    "\\n\\nSpiegazione: " + (q.explanation || "-");
+
+  const buttons = document.querySelectorAll(".quizOptionBtn");
+  buttons.forEach(btn=>btn.disabled = true);
+
+  const box = document.querySelector("#pdfInteractiveContent");
+  box.insertAdjacentHTML("beforeend", `
+    <div class="actions">
+      <button type="button" onclick="nextPdfQuizQuestion()">Domanda successiva</button>
+      <button type="button" class="secondary" onclick="renderPdfQuizResult()">Termina quiz</button>
+    </div>
+  `);
+}
+
+function nextPdfQuizQuestion(){
+  currentPdfQuizIndex++;
+  if(currentPdfQuizIndex >= currentPdfQuiz.length){
+    renderPdfQuizResult();
+  }else{
+    renderPdfQuizQuestion();
+  }
+}
+
+function renderPdfQuizResult(){
+  const total = currentPdfQuiz.length || 1;
+  const percent = Math.round((currentPdfQuizScore / total) * 100);
+  let giudizio = "Da ripassare";
+  if(percent >= 60) giudizio = "Discreto";
+  if(percent >= 75) giudizio = "Buono";
+  if(percent >= 90) giudizio = "Ottimo";
+
+  setPdfInteractiveContent(`
+    <div class="item">
+      <b>Quiz completato</b>
+      <div class="small">Punteggio: ${currentPdfQuizScore}/${total}</div>
+      <div class="small">Percentuale: ${percent}%</div>
+      <div class="small">Valutazione: ${giudizio}</div>
+      <div class="progressBar"><span style="width:${percent}%"></span></div>
+      <div class="itemActions">
+        <button type="button" onclick="quizCurrentPdf()">Rifai quiz</button>
+        <button type="button" class="secondary" onclick="oralQuestionsCurrentPdf()">Passa a domande orali</button>
+      </div>
+    </div>
+  `);
+}
+
+async function oralQuestionsCurrentPdf(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+
+  out.textContent = "Genero domande orali interattive dal PDF...";
+  showPdfInteractive("Simulazione orale dal PDF");
+  setPdfInteractiveContent('<div class="item">Generazione domande orali in corso...</div>');
+
+  try{
+    const r = await fetch(url + "/documents/oral-questions", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id:currentPdfChatDocId,count:6})
+    });
+
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore orale PDF");
+
+    currentPdfOralQuestions = data.questions || [];
+    currentPdfOralIndex = 0;
+
+    if(!currentPdfOralQuestions.length){
+      setPdfInteractiveContent('<div class="item">Nessuna domanda orale generata.</div>');
+      return;
+    }
+
+    out.textContent = "Domande orali generate. Rispondi una domanda alla volta.";
+    renderPdfOralQuestion();
+
+  }catch(e){
+    out.textContent = "Errore domande orali PDF: " + e.message;
+    setPdfInteractiveContent('<div class="item">Errore domande orali PDF: '+esc(e.message)+'</div>');
+  }
+}
+
+function renderPdfOralQuestion(){
+  const q = currentPdfOralQuestions[currentPdfOralIndex];
+  if(!q){
+    setPdfInteractiveContent('<div class="item"><b>Simulazione orale completata.</b></div>');
+    return;
+  }
+
+  setPdfInteractiveContent(`
+    <div class="item">
+      <b>Domanda orale ${currentPdfOralIndex + 1} di ${currentPdfOralQuestions.length}</b>
+      <div class="small">${esc(currentPdfChatDoc?.title || "")}</div>
+    </div>
+    <div class="item">
+      <b>${esc(q)}</b>
+      <label>Scrivi la tua risposta</label>
+      <textarea id="pdfOralStudentAnswer" rows="6" placeholder="Scrivi qui la risposta come se fossi all'orale..."></textarea>
+      <div class="itemActions">
+        <button type="button" onclick="evaluatePdfOralAnswer()">Valuta risposta</button>
+        <button type="button" class="secondary" onclick="nextPdfOralQuestion()">Salta</button>
+      </div>
+      <div id="pdfOralFeedback" class="aiBox hidden"></div>
+    </div>
+  `);
+}
+
+async function evaluatePdfOralAnswer(){
+  const url = getWorkerUrl();
+  const answer = document.querySelector("#pdfOralStudentAnswer")?.value.trim();
+  const feedback = document.querySelector("#pdfOralFeedback");
+  const question = currentPdfOralQuestions[currentPdfOralIndex];
+
+  if(!answer) return alert("Scrivi prima la risposta.");
+  if(!feedback) return;
+
+  feedback.classList.remove("hidden");
+  feedback.textContent = "Valutazione risposta in corso...";
+
+  try{
+    const r = await fetch(url + "/oral", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        topic: currentPdfChatDoc?.subject || "Documento PDF",
+        question,
+        answer
+      })
+    });
+
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Errore valutazione orale");
+
+    feedback.textContent =
+      `Voto simulato: ${data.vote30}/30\\n`+
+      `Correttezza: ${data.correctness}%\\n`+
+      `Completezza: ${data.completeness}%\\n`+
+      `Chiarezza: ${data.clarity}%\\n\\n`+
+      `Feedback:\\n${data.feedback}\\n\\n`+
+      `Punti mancanti:\\n${(data.missing_points||[]).join("\\n")}\\n\\n`+
+      `Risposta migliorata:\\n${data.improved_answer}`;
+
+    const box = document.querySelector("#pdfInteractiveContent");
+    box.insertAdjacentHTML("beforeend", `
+      <div class="actions">
+        <button type="button" onclick="nextPdfOralQuestion()">Domanda successiva</button>
+        <button type="button" class="secondary" onclick="oralQuestionsCurrentPdf()">Ricomincia orale</button>
+      </div>
+    `);
+
+  }catch(e){
+    feedback.textContent = "Errore valutazione orale: " + e.message;
+  }
+}
+
+function nextPdfOralQuestion(){
+  currentPdfOralIndex++;
+  if(currentPdfOralIndex >= currentPdfOralQuestions.length){
+    setPdfInteractiveContent(`
+      <div class="item">
+        <b>Simulazione orale completata.</b>
+        <div class="itemActions">
+          <button type="button" onclick="oralQuestionsCurrentPdf()">Nuova simulazione</button>
+          <button type="button" class="secondary" onclick="quizCurrentPdf()">Genera quiz</button>
+        </div>
+      </div>
+    `);
+  }else{
+    renderPdfOralQuestion();
+  }
+}
+
+window.quizCurrentPdf = quizCurrentPdf;
+window.answerPdfQuiz = answerPdfQuiz;
+window.nextPdfQuizQuestion = nextPdfQuizQuestion;
+window.renderPdfQuizResult = renderPdfQuizResult;
+window.oralQuestionsCurrentPdf = oralQuestionsCurrentPdf;
+window.renderPdfOralQuestion = renderPdfOralQuestion;
+window.evaluatePdfOralAnswer = evaluatePdfOralAnswer;
+window.nextPdfOralQuestion = nextPdfOralQuestion;

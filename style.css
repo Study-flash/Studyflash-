@@ -48,3 +48,8 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 #statsDetailPanel summary{cursor:pointer;font-weight:700}
 #stats .stat, #stats .statCard{transition:transform .15s ease, box-shadow .15s ease}
 #stats .stat:hover, #stats .statCard:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(0,0,0,.2)}
+
+#pdfInteractivePanel.hidden{display:none}
+.quizOptions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px}
+.quizOptionBtn{text-align:left;white-space:normal}
+#pdfOralFeedback.hidden,#pdfQuizFeedback.hidden{display:none}
