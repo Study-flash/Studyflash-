@@ -23,6 +23,7 @@
     <nav class="tabs">
       <button class="tab active" data-view="home">Home</button>
       <button class="tab" data-view="subjects">Materie CTF</button>
+      <button class="tab" data-view="cloudLibrary">Libreria Cloud</button>
       <button class="tab" data-view="exams">Esami</button>
       <button class="tab" data-view="tutor">Tutor AI</button>
       <button class="tab" data-view="create">Crea</button>
@@ -133,6 +134,37 @@
           <input id="drugName" placeholder="Esempio: Amoxicillina, Paracetamolo, Warfarin">
           <button id="drugGenerateBtn">Genera scheda farmaco</button>
           <div id="drugResult" class="aiBox"></div>
+        </div>
+      </section>
+
+
+      <section id="cloudLibrary" class="view">
+        <div class="panel">
+          <h2>Libreria Cloud R2</h2>
+          <p class="muted">Archivia PDF, immagini e appunti su Cloudflare R2. D1 salva solo i riferimenti e il testo estratto.</p>
+
+          <label>Materia collegata</label>
+          <select id="docSubject"></select>
+
+          <label>Titolo documento</label>
+          <input id="docTitle" placeholder="Esempio: Farmacologia - Recettori">
+
+          <label>Carica PDF / immagine / testo</label>
+          <input id="docFile" type="file" accept=".pdf,.txt,image/*">
+
+          <div class="actions">
+            <button id="uploadDocBtn">Carica in R2</button>
+            <button id="refreshDocsBtn" class="secondary">Aggiorna libreria</button>
+            <button id="backupR2Btn" class="secondary">Backup completo in R2</button>
+          </div>
+
+          <div id="docStatus" class="aiBox"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Documenti salvati</h3>
+          <input id="docSearch" placeholder="Cerca per titolo, materia o testo estratto...">
+          <div id="docList" class="list"></div>
         </div>
       </section>
 

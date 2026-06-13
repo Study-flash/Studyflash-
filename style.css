@@ -37,3 +37,6 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 
 .voiceActions{margin-top:10px}
 .voiceActions button{font-size:14px;padding:10px 12px}
+
+#docStatus{min-height:44px}
+#docList .item b{font-size:17px}

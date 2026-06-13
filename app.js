@@ -1524,3 +1524,227 @@ document.addEventListener("click",()=>{
 });
 
 setTimeout(addVoiceButtons, 800);
+
+
+/* ===== V19 LIBRERIA CLOUD R2 ===== */
+function fillDocumentSubjectSelect(){
+  const sel = document.querySelector("#docSubject");
+  if(!sel) return;
+  ensureCtfData?.();
+  const old = sel.value;
+  sel.innerHTML = (db.subjects || []).map(s => `<option value="${escAttr(s.name)}">${esc(s.name)}</option>`).join("");
+  if(old) sel.value = old;
+}
+
+async function fileToBase64(file){
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for(let i=0;i<bytes.length;i+=chunk){
+    binary += String.fromCharCode(...bytes.subarray(i,i+chunk));
+  }
+  return btoa(binary);
+}
+
+async function extractTextForDocument(file){
+  try{
+    if(file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")){
+      return await readPdf(file);
+    }
+    if(file.type.startsWith("image/")){
+      return await readImage(file);
+    }
+    if(file.type.startsWith("text/") || file.name.toLowerCase().endsWith(".txt")){
+      return await file.text();
+    }
+  }catch(e){
+    return "";
+  }
+  return "";
+}
+
+function docSetStatus(msg){
+  const el = document.querySelector("#docStatus");
+  if(el) el.textContent = msg || "";
+}
+
+async function uploadDocumentToR2(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const file = document.querySelector("#docFile")?.files?.[0];
+  const subject = document.querySelector("#docSubject")?.value || "";
+  const title = document.querySelector("#docTitle")?.value.trim() || file?.name || "Documento";
+
+  if(!url) return alert("Inserisci l'URL del Worker in Impostazioni.");
+  if(!userId) return alert("Prima accedi al Cloud D1 da Impostazioni.");
+  if(!file) return alert("Scegli un PDF, immagine o file di testo.");
+
+  docSetStatus("Lettura testo documento...");
+  const textContent = await extractTextForDocument(file);
+
+  docSetStatus("Preparazione file per R2...");
+  const base64 = await fileToBase64(file);
+
+  docSetStatus("Caricamento su Cloudflare R2...");
+  try{
+    const r = await fetch(url + "/documents/upload", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        userId,
+        subject,
+        title,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        base64,
+        textContent
+      })
+    });
+    const data = await r.json();
+    if(!r.ok || !data.ok) throw new Error(data.error || "Errore caricamento R2");
+
+    docSetStatus(`Documento caricato in R2.\nTesto estratto: ${textContent.length} caratteri\nDimensione file: ${Math.round((data.size||0)/1024)} KB`);
+    document.querySelector("#docTitle").value = "";
+    document.querySelector("#docFile").value = "";
+    await loadDocuments();
+  }catch(e){
+    docSetStatus("Errore caricamento: " + e.message);
+  }
+}
+
+async function loadDocuments(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const box = document.querySelector("#docList");
+  if(!box) return;
+  if(!url){ box.innerHTML='<div class="item">Inserisci URL Worker in Impostazioni.</div>'; return; }
+  if(!userId){ box.innerHTML='<div class="item">Accedi al Cloud D1 da Impostazioni.</div>'; return; }
+
+  const q = document.querySelector("#docSearch")?.value.trim() || "";
+  box.innerHTML = '<div class="item">Caricamento documenti...</div>';
+
+  try{
+    const r = await fetch(url + "/documents/list", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,q})
+    });
+    const data = await r.json();
+    if(!r.ok || !data.ok) throw new Error(data.error || "Errore lista documenti");
+
+    if(!data.documents.length){
+      box.innerHTML = '<div class="item">Nessun documento salvato.</div>';
+      return;
+    }
+
+    box.innerHTML = "";
+    data.documents.forEach(d=>{
+      box.insertAdjacentHTML("beforeend",`
+        <div class="item">
+          <b>${esc(d.title || d.file_name)}</b>
+          <div class="small">${esc(d.subject || "Senza materia")} • ${esc(d.file_name || "")} • ${Math.round((d.size||0)/1024)} KB</div>
+          <div class="small">${esc((d.preview || "").slice(0,220))}</div>
+          <div class="itemActions">
+            <button type="button" onclick="generateFromCloudDoc('${escAttr(d.id)}')">Genera flashcard</button>
+            <button type="button" class="secondary" onclick="downloadCloudDoc('${escAttr(d.id)}')">Scarica</button>
+            <button type="button" class="secondary" onclick="deleteCloudDoc('${escAttr(d.id)}')">Elimina</button>
+          </div>
+        </div>
+      `);
+    });
+  }catch(e){
+    box.innerHTML = '<div class="item">Errore libreria: '+esc(e.message)+'</div>';
+  }
+}
+
+async function getCloudDocContent(id){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const r = await fetch(url + "/documents/content", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({userId,id})
+  });
+  const data = await r.json();
+  if(!r.ok || !data.ok) throw new Error(data.error || "Errore documento");
+  return data.document;
+}
+
+async function generateFromCloudDoc(id){
+  try{
+    const d = await getCloudDocContent(id);
+    if(!d.text_content) return alert("Questo documento non ha testo estratto. Prova a ricaricarlo o usa OCR.");
+
+    showView("create");
+    document.querySelector("#deckTopic").value = d.subject || "";
+    document.querySelector("#deckName").value = (d.subject || "Documento") + " - " + (d.title || d.file_name || "PDF");
+    document.querySelector("#sourceText").value = d.text_content;
+    alert("Documento caricato nella sezione Crea. Ora premi Genera con AI.");
+  }catch(e){
+    alert("Errore: " + e.message);
+  }
+}
+
+function downloadCloudDoc(id){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  if(!url || !userId) return alert("Cloud non configurato.");
+  window.open(url + "/documents/download?userId=" + encodeURIComponent(userId) + "&id=" + encodeURIComponent(id), "_blank");
+}
+
+async function deleteCloudDoc(id){
+  if(!confirm("Eliminare questo documento da R2?")) return;
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  try{
+    const r = await fetch(url + "/documents/delete", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,id})
+    });
+    const data = await r.json();
+    if(!r.ok || !data.ok) throw new Error(data.error || "Errore eliminazione");
+    await loadDocuments();
+  }catch(e){
+    alert("Errore: " + e.message);
+  }
+}
+
+async function backupFullToR2(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  if(!url) return alert("Inserisci URL Worker.");
+  if(!userId) return alert("Prima accedi al Cloud D1.");
+
+  docSetStatus("Creazione backup su R2...");
+  try{
+    const r = await fetch(url + "/backup/r2", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,data:db})
+    });
+    const data = await r.json();
+    if(!r.ok || !data.ok) throw new Error(data.error || "Errore backup");
+    docSetStatus("Backup creato in R2:\n" + data.key);
+  }catch(e){
+    docSetStatus("Errore backup: " + e.message);
+  }
+}
+
+document.querySelector("#uploadDocBtn")?.addEventListener("click", e=>{e.preventDefault(); uploadDocumentToR2();});
+document.querySelector("#refreshDocsBtn")?.addEventListener("click", e=>{e.preventDefault(); loadDocuments();});
+document.querySelector("#backupR2Btn")?.addEventListener("click", e=>{e.preventDefault(); backupFullToR2();});
+document.querySelector("#docSearch")?.addEventListener("input", ()=>setTimeout(loadDocuments, 200));
+
+window.generateFromCloudDoc = generateFromCloudDoc;
+window.downloadCloudDoc = downloadCloudDoc;
+window.deleteCloudDoc = deleteCloudDoc;
+
+const oldRefreshV19 = refresh;
+refresh = function(){
+  oldRefreshV19();
+  fillDocumentSubjectSelect();
+};
+
+setTimeout(()=>{ fillDocumentSubjectSelect(); loadDocuments(); }, 700);
