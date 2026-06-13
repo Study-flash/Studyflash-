@@ -1215,6 +1215,7 @@ function saveVoiceSettings(){
   db.settings.voiceProvider = document.querySelector("#voiceProvider")?.value || "browser";
   db.settings.elevenLabsKey = document.querySelector("#elevenLabsKey")?.value.trim() || "";
   db.settings.elevenLabsVoiceId = document.querySelector("#elevenLabsVoiceId")?.value.trim() || "";
+  db.settings.geminiVoiceName = document.querySelector("#geminiVoiceName")?.value || "Kore";
   save();
   const s = document.querySelector("#voiceStatus");
   if(s) s.textContent = "Impostazioni voce salvate.";
@@ -1226,6 +1227,41 @@ async function speakTutorText(text){
 
   db.settings = db.settings || {};
   const provider = db.settings.voiceProvider || "browser";
+
+
+  if(provider === "gemini"){
+    const url = getWorkerUrl ? getWorkerUrl() : ((db.settings.workerUrl || "").trim().replace(/\/$/,""));
+    if(!url){ alert("Per usare Gemini TTS serve l'URL del Worker nelle Impostazioni."); return; }
+
+    try{
+      const status = document.querySelector("#voiceStatus");
+      if(status) status.textContent = "Genero voce Gemini...";
+
+      const r = await fetch(url + "/tts-gemini", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          text: clean,
+          voiceName: db.settings.geminiVoiceName || "Kore"
+        })
+      });
+
+      if(!r.ok){
+        const err = await r.json().catch(()=>({error:"Errore voce Gemini"}));
+        throw new Error(err.error || "Errore voce Gemini");
+      }
+
+      const blob = await r.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      if(currentAiAudio){ currentAiAudio.pause(); currentAiAudio = null; }
+      currentAiAudio = new Audio(audioUrl);
+      currentAiAudio.play();
+      if(status) status.textContent = "Voce Gemini in riproduzione.";
+      return;
+    }catch(e){
+      alert("Errore voce Gemini: " + e.message + "\\nUso la voce gratuita del dispositivo.");
+    }
+  }
 
   if(provider === "elevenlabs"){
     const url = getWorkerUrl ? getWorkerUrl() : ((db.settings.workerUrl || "").trim().replace(/\/$/,""));
@@ -1313,7 +1349,7 @@ document.querySelector("#saveVoiceSettingsBtn")?.addEventListener("click",(e)=>{
 document.querySelector("#testVoiceBtn")?.addEventListener("click",(e)=>{
   e.preventDefault();
   saveVoiceSettings();
-  speakTutorText("Ciao, sono il tutor vocale di StudyFlash AI CTF Pro. Posso leggere spiegazioni, risposte e valutazioni orali.");
+  speakTutorText("Ciao, sono il tutor vocale di StudyFlash AI CTF Pro. Posso leggere spiegazioni, risposte, schede farmaco e valutazioni orali.");
 });
 
 setTimeout(()=>{ loadVoiceSettings(); addVoiceButtons(); }, 500);
