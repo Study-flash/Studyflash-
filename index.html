@@ -57,6 +57,17 @@
           <div class="card"><b id="dueCount">0</b><span>Da ripassare</span></div>
           <div class="card"><b id="xpCount">0</b><span>XP</span></div>
         </div>
+        <div class="panel" id="smartDashboardPanel">
+          <h3>Cruscotto rapido</h3>
+          <p class="muted">Azioni dirette sulle statistiche rilevate dall'app.</p>
+          <div class="actions smartActions">
+            <button id="btnDashRipassi">Apri ripassi</button>
+            <button id="btnDashFlashcard" class="secondary">Tutte le flashcard</button>
+            <button id="btnDashQuizRipassi" class="secondary">Quiz dai ripassi</button>
+            <button id="btnDashXp" class="secondary">XP e livello</button>
+          </div>
+        </div>
+
         <h3>Ultimi mazzi</h3>
         <input id="deckSearch" placeholder="Cerca nei mazzi e nelle flashcard...">
         <div id="deckList" class="list"></div>
@@ -291,12 +302,25 @@
       <section id="stats" class="view">
         <div class="panel">
           <h2>Statistiche</h2>
+        <div class="actions smartActions" id="statsQuickActions">
+          <button id="btnStatsRipassi">Apri ripassi</button>
+          <button id="btnStatsFlashcard" class="secondary">Tutte le flashcard</button>
+          <button id="btnStatsQuizRipassi" class="secondary">Quiz dai ripassi</button>
+          <button id="btnStatsXp" class="secondary">XP e livello</button>
+        </div>
           <div id="statsBox"></div>
         </div>
 
         <div class="panel hidden" id="statsDetailPanel">
           <h3 id="statsDetailTitle">Dettaglio</h3>
           <div id="statsDetailContent" class="list"></div>
+        </div>
+      </section>
+
+      <section id="statsActionsView" class="view">
+        <div class="panel">
+          <h2 id="statsActionTitle">Cruscotto</h2>
+          <div id="statsActionContent" class="list"></div>
         </div>
       </section>
 

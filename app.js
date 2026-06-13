@@ -3098,3 +3098,318 @@ window.v27ShowXp = v27ShowXp;
 window.v27ShowLevel = v27ShowLevel;
 
 setTimeout(v27AttachStatsClicks, 1000);
+
+
+/* ===== V28 DASHBOARD CON PULSANTI ESPLICITI ===== */
+function v28Cards(){
+  const arr = [];
+  (db.decks || []).forEach(deck=>{
+    (deck.cards || []).forEach(card=>{
+      arr.push({deck, card});
+    });
+  });
+  return arr;
+}
+
+function v28DueCards(){
+  const t = today();
+  return v28Cards().filter(x => (x.card.due || t) <= t);
+}
+
+function v28Open(title, html){
+  showView("statsActionsView");
+  setTimeout(()=>{
+    const titleEl = document.querySelector("#statsActionTitle");
+    const content = document.querySelector("#statsActionContent");
+    if(titleEl) titleEl.textContent = title;
+    if(content) content.innerHTML = html;
+  },80);
+}
+
+function v28GroupBySubject(items){
+  const grouped = {};
+  items.forEach(({deck, card})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    if(!grouped[key]) grouped[key] = [];
+    grouped[key].push({deck, card});
+  });
+  return grouped;
+}
+
+function v28ApriRipassi(){
+  const due = v28DueCards();
+  if(!due.length){
+    v28Open("Ripassi", `<div class="item">Nessuna scheda da ripassare oggi.</div>`);
+    return;
+  }
+
+  const grouped = v28GroupBySubject(due);
+  let html = `
+    <div class="item">
+      <b>${due.length} schede da ripassare</b>
+      <div class="small">Sono le schede che risultano in scadenza oggi o già scadute.</div>
+      <div class="itemActions">
+        <button type="button" onclick="v28AvviaRipasso('all')">Ripassa tutte</button>
+        <button type="button" class="secondary" onclick="v28QuizRipassi()">Quiz dai ripassi</button>
+      </div>
+    </div>
+  `;
+
+  Object.entries(grouped).forEach(([subject, items])=>{
+    html += `
+      <div class="item">
+        <b>${esc(subject)}</b>
+        <div class="small">${items.length} schede da ripassare</div>
+        <div class="itemActions">
+          <button type="button" onclick="v28AvviaRipasso('${escAttr(subject)}')">Ripassa</button>
+          <button type="button" class="secondary" onclick="v28VediSchedeRipasso('${escAttr(subject)}')">Vedi schede</button>
+        </div>
+      </div>
+    `;
+  });
+
+  v28Open("Ripassi rilevati", html);
+}
+
+function v28VediSchedeRipasso(subject){
+  const cards = v28DueCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return subject === "all" || key === subject;
+  });
+
+  let html = `
+    <div class="item">
+      <b>${cards.length} schede selezionate</b>
+      <div class="itemActions">
+        <button type="button" onclick="v28AvviaRipasso('${escAttr(subject)}')">Avvia ripasso</button>
+      </div>
+    </div>
+  `;
+
+  cards.forEach(({deck, card}, i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <details>
+          <summary>Mostra risposta</summary>
+          <div class="small">${esc(card.a || "")}</div>
+        </details>
+        <div class="small">${esc(deck.name || "")} • Scadenza: ${esc(card.due || today())}</div>
+      </div>
+    `;
+  });
+
+  v28Open("Schede da ripassare", html);
+}
+
+function v28AvviaRipasso(subject){
+  const selected = v28DueCards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return subject === "all" || key === subject;
+  });
+
+  if(!selected.length) return alert("Nessuna scheda selezionata.");
+
+  currentStudy = {
+    deck: {
+      id: "v28_review_" + Date.now(),
+      name: subject === "all" ? "Ripassi di oggi" : "Ripassi - " + subject,
+      topic: subject === "all" ? "Ripassi" : subject,
+      cards: selected.map(x=>x.card)
+    },
+    queue: selected.map(x=>x.card).sort(()=>Math.random()-0.5),
+    card: null
+  };
+
+  showView("study");
+  nextStudy();
+}
+
+function v28TutteFlashcard(){
+  const all = v28Cards();
+  if(!all.length){
+    v28Open("Tutte le flashcard", `<div class="item">Nessuna flashcard salvata.</div>`);
+    return;
+  }
+
+  const grouped = v28GroupBySubject(all);
+  let html = `
+    <div class="item">
+      <b>${all.length} flashcard totali</b>
+      <div class="small">Scegli una materia da studiare o visualizzare.</div>
+    </div>
+  `;
+
+  Object.entries(grouped).forEach(([subject, items])=>{
+    html += `
+      <div class="item">
+        <b>${esc(subject)}</b>
+        <div class="small">${items.length} flashcard</div>
+        <div class="itemActions">
+          <button type="button" onclick="v28StudiaMateria('${escAttr(subject)}')">Studia</button>
+          <button type="button" class="secondary" onclick="v28VediMateria('${escAttr(subject)}')">Vedi schede</button>
+        </div>
+      </div>
+    `;
+  });
+
+  v28Open("Tutte le flashcard", html);
+}
+
+function v28VediMateria(subject){
+  const cards = v28Cards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return key === subject;
+  });
+
+  let html = `
+    <div class="item">
+      <b>${cards.length} flashcard in ${esc(subject)}</b>
+      <div class="itemActions">
+        <button type="button" onclick="v28StudiaMateria('${escAttr(subject)}')">Studia questa materia</button>
+      </div>
+    </div>
+  `;
+
+  cards.forEach(({deck, card}, i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <details>
+          <summary>Mostra risposta</summary>
+          <div class="small">${esc(card.a || "")}</div>
+        </details>
+        <div class="small">${esc(deck.name || "")}</div>
+      </div>
+    `;
+  });
+
+  v28Open("Flashcard materia", html);
+}
+
+function v28StudiaMateria(subject){
+  const selected = v28Cards().filter(({deck})=>{
+    const key = deck.topic || deck.name || "Senza materia";
+    return key === subject;
+  });
+
+  if(!selected.length) return alert("Nessuna scheda trovata.");
+
+  currentStudy = {
+    deck: {
+      id: "v28_subject_" + Date.now(),
+      name: "Studio - " + subject,
+      topic: subject,
+      cards: selected.map(x=>x.card)
+    },
+    queue: selected.map(x=>x.card).sort(()=>Math.random()-0.5),
+    card: null
+  };
+
+  showView("study");
+  nextStudy();
+}
+
+function v28QuizRipassi(){
+  const due = v28DueCards();
+  if(!due.length){
+    v28Open("Quiz dai ripassi", `<div class="item">Nessuna scheda da ripassare.</div>`);
+    return;
+  }
+
+  let html = `
+    <div class="item">
+      <b>Quiz rapido dai ripassi</b>
+      <div class="small">Prova mentalmente, poi apri la risposta.</div>
+    </div>
+  `;
+
+  due.slice(0,30).forEach(({card}, i)=>{
+    html += `
+      <div class="item">
+        <b>${i+1}. ${esc(card.q || "")}</b>
+        <details>
+          <summary>Mostra risposta</summary>
+          <div class="small">${esc(card.a || "")}</div>
+        </details>
+      </div>
+    `;
+  });
+
+  v28Open("Quiz dai ripassi", html);
+}
+
+function v28XpLivello(){
+  const xp = Number(db.xp || 0);
+  const level = Math.floor(xp / 100) + 1;
+  const progress = xp % 100;
+  let titolo = "Studente";
+  if(level >= 5) titolo = "Assistente";
+  if(level >= 10) titolo = "Ricercatore";
+  if(level >= 15) titolo = "Laureando";
+  if(level >= 20) titolo = "Esperto CTF";
+
+  v28Open("XP e livello", `
+    <div class="item">
+      <b>${xp} XP</b>
+      <div class="small">Livello ${level} • ${titolo}</div>
+      <div class="small">Mancano ${100-progress} XP al prossimo livello</div>
+      <div class="progressBar"><span style="width:${progress}%"></span></div>
+    </div>
+  `);
+}
+
+function v28BindDashboardButtons(){
+  const binds = [
+    ["#btnDashRipassi", v28ApriRipassi],
+    ["#btnStatsRipassi", v28ApriRipassi],
+    ["#btnDashFlashcard", v28TutteFlashcard],
+    ["#btnStatsFlashcard", v28TutteFlashcard],
+    ["#btnDashQuizRipassi", v28QuizRipassi],
+    ["#btnStatsQuizRipassi", v28QuizRipassi],
+    ["#btnDashXp", v28XpLivello],
+    ["#btnStatsXp", v28XpLivello]
+  ];
+
+  binds.forEach(([sel, fn])=>{
+    const el = document.querySelector(sel);
+    if(el && !el.dataset.v28Ready){
+      el.dataset.v28Ready = "1";
+      el.addEventListener("click", e=>{
+        e.preventDefault();
+        fn();
+      });
+    }
+  });
+}
+
+/* Anche i riquadri numerici della Home diventano cliccabili con rilevamento diretto */
+document.addEventListener("click", e=>{
+  const card = e.target.closest(".stat, .statCard");
+  if(!card) return;
+  const t = (card.textContent || "").toLowerCase();
+  if(t.includes("da ripassare") || t.includes("ripassi")){
+    e.preventDefault(); v28ApriRipassi();
+  }else if(t.includes("flashcard") || t.includes("mazzi") || t.includes("schede totali")){
+    e.preventDefault(); v28TutteFlashcard();
+  }else if(t.includes("xp") || t.includes("livello")){
+    e.preventDefault(); v28XpLivello();
+  }
+});
+
+const oldRefreshV28 = refresh;
+refresh = function(){
+  oldRefreshV28();
+  setTimeout(v28BindDashboardButtons, 100);
+};
+
+window.v28ApriRipassi = v28ApriRipassi;
+window.v28TutteFlashcard = v28TutteFlashcard;
+window.v28QuizRipassi = v28QuizRipassi;
+window.v28XpLivello = v28XpLivello;
+window.v28AvviaRipasso = v28AvviaRipasso;
+window.v28VediSchedeRipasso = v28VediSchedeRipasso;
+window.v28StudiaMateria = v28StudiaMateria;
+window.v28VediMateria = v28VediMateria;
+
+setTimeout(v28BindDashboardButtons, 800);
