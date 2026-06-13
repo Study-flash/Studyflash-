@@ -3311,7 +3311,7 @@ function v28StudiaMateria(subject){
 }
 
 function v28QuizRipassi(){
-  const due = v28DueCards();
+  const due = typeof v28DueCards === "function" ? v28DueCards() : [];
   if(!due.length){
     v28Open("Quiz dai ripassi", `<div class="item">Nessuna scheda da ripassare.</div>`);
     return;
@@ -3320,23 +3320,25 @@ function v28QuizRipassi(){
   let html = `
     <div class="item">
       <b>Quiz rapido dai ripassi</b>
-      <div class="small">Prova mentalmente, poi apri la risposta.</div>
+      <div class="small">Prova mentalmente, poi premi il pulsante “Mostra risposta”.</div>
     </div>
   `;
 
   due.slice(0,30).forEach(({card}, i)=>{
+    const question = esc(card.q || "");
+    const answer = encodeURIComponent(String(card.a || ""));
     html += `
-      <div class="item">
-        <b>${i+1}. ${esc(card.q || "")}</b>
-        <details>
-          <summary>Mostra risposta</summary>
-          <div class="small">${esc(card.a || "")}</div>
-        </details>
+      <div class="item quickQuizCard">
+        <b>${i+1}. ${question}</b>
+        <div class="itemActions">
+          <button type="button" class="secondary quickAnswerBtn" data-answer="${answer}">Mostra risposta</button>
+        </div>
+        <div class="quickAnswerBox aiBox hidden" data-visible="0"></div>
       </div>
     `;
   });
 
-  v28Open("Quiz dai ripassi", html);
+  v28Open("Quiz rapido dai ripassi", html);
 }
 
 function v28XpLivello(){
@@ -3464,7 +3466,7 @@ document.addEventListener("click", function(e){
 
 /* Sovrascrive il quiz dai ripassi: niente <details>, solo pulsanti controllati da JS */
 function v28QuizRipassi(){
-  const due = v28DueCards ? v28DueCards() : [];
+  const due = typeof v28DueCards === "function" ? v28DueCards() : [];
   if(!due.length){
     v28Open("Quiz dai ripassi", `<div class="item">Nessuna scheda da ripassare.</div>`);
     return;
@@ -3473,15 +3475,16 @@ function v28QuizRipassi(){
   let html = `
     <div class="item">
       <b>Quiz rapido dai ripassi</b>
-      <div class="small">Prova mentalmente, poi premi “Mostra risposta”.</div>
+      <div class="small">Prova mentalmente, poi premi il pulsante “Mostra risposta”.</div>
     </div>
   `;
 
   due.slice(0,30).forEach(({card}, i)=>{
-    const answer = v29EscapeForData(card.a || "");
+    const question = esc(card.q || "");
+    const answer = encodeURIComponent(String(card.a || ""));
     html += `
       <div class="item quickQuizCard">
-        <b>${i+1}. ${esc(card.q || "")}</b>
+        <b>${i+1}. ${question}</b>
         <div class="itemActions">
           <button type="button" class="secondary quickAnswerBtn" data-answer="${answer}">Mostra risposta</button>
         </div>
@@ -3495,3 +3498,86 @@ function v28QuizRipassi(){
 
 window.v28QuizRipassi = v28QuizRipassi;
 window.v29ToggleAnswer = v29ToggleAnswer;
+
+
+/* ===== V30 FIX REALE QUIZ RAPIDO ===== */
+function v30DecodeAnswer(value){
+  try { return decodeURIComponent(String(value || "")); }
+  catch(e){ return String(value || ""); }
+}
+
+function v30ToggleQuickAnswer(btn){
+  const card = btn.closest(".quickQuizCard") || btn.closest(".item");
+  if(!card) return;
+
+  let box = card.querySelector(".quickAnswerBox");
+  if(!box){
+    box = document.createElement("div");
+    box.className = "quickAnswerBox aiBox hidden";
+    box.dataset.visible = "0";
+    card.appendChild(box);
+  }
+
+  const visible = box.dataset.visible === "1";
+  if(visible){
+    box.textContent = "";
+    box.classList.add("hidden");
+    box.dataset.visible = "0";
+    btn.textContent = "Mostra risposta";
+  }else{
+    box.textContent = v30DecodeAnswer(btn.dataset.answer || "");
+    box.classList.remove("hidden");
+    box.dataset.visible = "1";
+    btn.textContent = "Nascondi risposta";
+  }
+}
+
+/* Gestore universale: funziona anche se il pulsante viene creato dopo */
+document.addEventListener("click", function(e){
+  const btn = e.target.closest(".quickAnswerBtn");
+  if(!btn) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+
+  v30ToggleQuickAnswer(btn);
+  return false;
+}, true);
+
+/* Fallback: se nel DOM resta ancora un vecchio <details>, lo trasformo in pulsante vero */
+function v30ConvertOldDetails(){
+  document.querySelectorAll("#statsActionsView details").forEach(details=>{
+    if(details.dataset.v30Converted) return;
+    details.dataset.v30Converted = "1";
+
+    const answerText = details.textContent.replace("Mostra risposta", "").trim();
+    const card = details.closest(".item");
+    if(!card) return;
+
+    details.remove();
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secondary quickAnswerBtn";
+    btn.dataset.answer = encodeURIComponent(answerText || "Risposta non disponibile.");
+    btn.textContent = "Mostra risposta";
+
+    const actions = document.createElement("div");
+    actions.className = "itemActions";
+    actions.appendChild(btn);
+
+    const box = document.createElement("div");
+    box.className = "quickAnswerBox aiBox hidden";
+    box.dataset.visible = "0";
+
+    card.appendChild(actions);
+    card.appendChild(box);
+  });
+}
+
+document.addEventListener("click", ()=>setTimeout(v30ConvertOldDetails, 50), true);
+setInterval(v30ConvertOldDetails, 1000);
+
+window.v28QuizRipassi = v28QuizRipassi;
+window.v30ToggleQuickAnswer = v30ToggleQuickAnswer;

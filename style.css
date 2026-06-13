@@ -74,3 +74,8 @@ textarea{resize:vertical}.fileRow{display:flex;gap:8px;align-items:center;flex-w
 .quickAnswerBox{margin-top:12px;white-space:pre-wrap}
 .quickQuizCard .itemActions{margin-top:10px}
 .quickAnswerBtn{touch-action:manipulation}
+
+.quickAnswerBox.hidden{display:none!important}
+.quickAnswerBox{display:block;margin-top:12px;white-space:pre-wrap}
+.quickAnswerBtn{touch-action:manipulation;cursor:pointer}
+.quickQuizCard .itemActions{margin-top:10px}
