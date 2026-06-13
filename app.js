@@ -1611,6 +1611,7 @@ async function uploadDocumentToR2(){
     try{
       const check = await checkDocumentSubjectAuto(data.id);
       if(check){
+        const suggested = check.suggested_subject || check.detected_subject || "";
         const msg = [
           `Documento caricato in R2.`,
           `Testo estratto: ${textContent.length} caratteri`,
@@ -1618,10 +1619,24 @@ async function uploadDocumentToR2(){
           ``,
           `Materia scelta: ${subject || "-"}`,
           `Materia rilevata: ${check.detected_subject || "-"}`,
-          `Materia suggerita: ${check.suggested_subject || "-"}`,
+          `Materia suggerita: ${suggested || "-"}`,
           check.warning ? `⚠️ ${check.warning}` : `✅ La materia sembra coerente.`
         ].join("\n");
         docSetStatus(msg);
+
+        const statusBox = document.querySelector("#docStatus");
+        if(statusBox && suggested && !check.matches){
+          const row = document.createElement("div");
+          row.className = "actions";
+          row.innerHTML = `
+            <button type="button">Usa materia suggerita</button>
+            <button type="button" class="secondary">Scegli manualmente</button>
+          `;
+          const btns = row.querySelectorAll("button");
+          btns[0].addEventListener("click",()=>changeDocSubjectToSuggested(data.id, suggested));
+          btns[1].addEventListener("click",()=>chooseDocSubjectManual(data.id));
+          statusBox.insertAdjacentElement("afterend", row);
+        }
       }
     }catch(e){
       docSetStatus(`Documento caricato in R2.\nTesto estratto: ${textContent.length} caratteri\nDimensione file: ${Math.round((data.size||0)/1024)} KB\n\nAvviso: controllo materia non riuscito: ${e.message}`);
@@ -1920,6 +1935,192 @@ async function checkPdfSubject(){
       `Corrisponde alla materia scelta: ${data.matches ? "Sì" : "No"}\\n`+
       `Materia suggerita: ${data.suggested_subject || "-"}\\n\\n`+
       `${data.warning || "Nessun avviso: la materia sembra coerente."}`;
+  }catch(e){
+    out.textContent = "Errore controllo materia: " + e.message;
+  }
+}
+window.checkPdfSubject = checkPdfSubject;
+
+
+/* ===== V22 CAMBIA MATERIA DOCUMENTO ===== */
+let lastSubjectCheck = null;
+
+async function updateCloudDocSubject(id, newSubject){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  if(!url) throw new Error("URL Worker mancante.");
+  if(!userId) throw new Error("Utente Cloud D1 non collegato.");
+  if(!id || !newSubject) throw new Error("Documento o materia mancante.");
+
+  const r = await fetch(url + "/documents/update-subject", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ userId, id, subject: newSubject })
+  });
+
+  const data = await r.json();
+  if(!r.ok || !data.ok) throw new Error(data.error || "Errore aggiornamento materia");
+  return data;
+}
+
+async function changeDocSubjectToSuggested(id, suggestedSubject){
+  if(!suggestedSubject) return alert("Nessuna materia suggerita disponibile.");
+
+  let finalSubject = suggestedSubject.trim();
+
+  // Se la materia suggerita non esiste, chiede se crearla.
+  ensureCtfData();
+  const exists = (db.subjects || []).some(s => (s.name || "").toLowerCase() === finalSubject.toLowerCase());
+  if(!exists){
+    const create = confirm(`La materia "${finalSubject}" non esiste ancora. Vuoi aggiungerla alle materie?`);
+    if(create){
+      db.subjects.push({
+        id: "ctf_custom_" + uid(),
+        name: finalSubject,
+        examDate: "",
+        cfu: "",
+        difficulty: "",
+        progress: 0,
+        custom: true
+      });
+      save();
+    }
+  }
+
+  try{
+    await updateCloudDocSubject(id, finalSubject);
+    if(currentPdfChatDoc && currentPdfChatDoc.id === id) currentPdfChatDoc.subject = finalSubject;
+    alert("Materia documento aggiornata: " + finalSubject);
+    await loadDocuments();
+    fillDocumentSubjectSelect?.();
+  }catch(e){
+    alert("Errore cambio materia: " + e.message);
+  }
+}
+
+async function chooseDocSubjectManual(id){
+  ensureCtfData();
+  const names = (db.subjects || []).map(s => s.name).join(", ");
+  const chosen = prompt("Scrivi la nuova materia per questo documento:\n\nMaterie disponibili:\n" + names);
+  if(!chosen || !chosen.trim()) return;
+
+  const finalSubject = chosen.trim();
+  const exists = (db.subjects || []).some(s => (s.name || "").toLowerCase() === finalSubject.toLowerCase());
+  if(!exists){
+    const create = confirm(`La materia "${finalSubject}" non esiste. Vuoi aggiungerla?`);
+    if(create){
+      db.subjects.push({
+        id: "ctf_custom_" + uid(),
+        name: finalSubject,
+        examDate: "",
+        cfu: "",
+        difficulty: "",
+        progress: 0,
+        custom: true
+      });
+      save();
+    }
+  }
+
+  try{
+    await updateCloudDocSubject(id, finalSubject);
+    if(currentPdfChatDoc && currentPdfChatDoc.id === id) currentPdfChatDoc.subject = finalSubject;
+    alert("Materia documento aggiornata: " + finalSubject);
+    await loadDocuments();
+    fillDocumentSubjectSelect?.();
+  }catch(e){
+    alert("Errore cambio materia: " + e.message);
+  }
+}
+
+window.changeDocSubjectToSuggested = changeDocSubjectToSuggested;
+window.chooseDocSubjectManual = chooseDocSubjectManual;
+
+/* Migliora il controllo automatico: mostra pulsante per correggere la materia */
+async function checkDocumentSubjectAuto(id){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  if(!url || !userId || !id) return null;
+
+  const r = await fetch(url + "/documents/check-subject", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({userId,id})
+  });
+
+  const data = await r.json();
+  if(!r.ok) throw new Error(data.error || "Errore controllo materia");
+
+  lastSubjectCheck = { id, ...data };
+  return data;
+}
+
+/* Sovrascrive la lista documenti per aggiungere Modifica materia */
+async function loadDocuments(){
+  const url = getWorkerUrl();
+  const userId = db.settings?.userId;
+  const box = document.querySelector("#docList");
+  if(!box) return;
+  if(!url){ box.innerHTML='<div class="item">Inserisci URL Worker in Impostazioni.</div>'; return; }
+  if(!userId){ box.innerHTML='<div class="item">Accedi al Cloud D1 da Impostazioni.</div>'; return; }
+
+  const q = document.querySelector("#docSearch")?.value.trim() || "";
+  box.innerHTML = '<div class="item">Caricamento documenti...</div>';
+
+  try{
+    const r = await fetch(url + "/documents/list", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({userId,q})
+    });
+    const data = await r.json();
+    if(!r.ok || !data.ok) throw new Error(data.error || "Errore lista documenti");
+
+    if(!data.documents.length){
+      box.innerHTML = '<div class="item">Nessun documento salvato.</div>';
+      return;
+    }
+
+    box.innerHTML = "";
+    data.documents.forEach(d=>{
+      box.insertAdjacentHTML("beforeend",`
+        <div class="item">
+          <b>${esc(d.title || d.file_name)}</b>
+          <div class="small">${esc(d.subject || "Senza materia")} • ${esc(d.file_name || "")} • ${Math.round((d.size||0)/1024)} KB</div>
+          <div class="small">${esc((d.preview || "").slice(0,220))}</div>
+          <div class="itemActions">
+            <button type="button" onclick="openPdfChat('${escAttr(d.id)}')">Chat PDF</button>
+            <button type="button" class="secondary" onclick="generateFromCloudDoc('${escAttr(d.id)}')">Genera flashcard</button>
+            <button type="button" class="secondary" onclick="chooseDocSubjectManual('${escAttr(d.id)}')">Modifica materia</button>
+            <button type="button" class="secondary" onclick="downloadCloudDoc('${escAttr(d.id)}')">Scarica</button>
+            <button type="button" class="secondary" onclick="deleteCloudDoc('${escAttr(d.id)}')">Elimina</button>
+          </div>
+        </div>
+      `);
+    });
+  }catch(e){
+    box.innerHTML = '<div class="item">Errore libreria: '+esc(e.message)+'</div>';
+  }
+}
+
+/* Sovrascrive controllo materia in Chat PDF con pulsante di correzione */
+async function checkPdfSubject(){
+  const out = document.querySelector("#pdfChatAnswer");
+  if(!currentPdfChatDocId) return alert("Seleziona un documento.");
+  out.textContent = "Controllo coerenza materia...";
+  try{
+    const data = await checkDocumentSubjectAuto(currentPdfChatDocId);
+    const suggested = data.suggested_subject || data.detected_subject || "";
+    out.innerHTML =
+      `<b>Materia scelta:</b> ${esc(currentPdfChatDoc?.subject || "-")}<br>`+
+      `<b>Materia rilevata:</b> ${esc(data.detected_subject || "-")}<br>`+
+      `<b>Corrisponde:</b> ${data.matches ? "Sì" : "No"}<br>`+
+      `<b>Materia suggerita:</b> ${esc(suggested || "-")}<br><br>`+
+      `${esc(data.warning || "Nessun avviso: la materia sembra coerente.")}<br><br>`+
+      `<div class="actions">`+
+      `<button type="button" onclick="changeDocSubjectToSuggested('${escAttr(currentPdfChatDocId)}','${escAttr(suggested)}')">Usa materia suggerita</button>`+
+      `<button type="button" class="secondary" onclick="chooseDocSubjectManual('${escAttr(currentPdfChatDocId)}')">Scegli manualmente</button>`+
+      `</div>`;
   }catch(e){
     out.textContent = "Errore controllo materia: " + e.message;
   }
